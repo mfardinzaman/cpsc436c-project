@@ -21,7 +21,10 @@
 		"typescript": "4.9.4"
 	},
   "scripts": {
-    "start": "npm start --prefix ./frontend"
+    "start": "npm start --prefix ./frontend",
+    "pretty": "prettier --config ./.prettierrc.json --write \"./**/*.ts\"",
+		"lint": "eslint src test --ext .ts",
+		"fix": "yarn lint --fix"
   },
   "repository": {
     "type": "git",
