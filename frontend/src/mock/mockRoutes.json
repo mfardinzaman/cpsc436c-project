@@ -1,0 +1,123 @@
+[
+    {
+      "route_id": "route_001",
+      "route_short_name": "101",
+      "route_long_name": "Downtown Express",
+      "route_type": 3,
+      "direction_id": 1,
+      "direction_name": "Southbound"
+    },
+    {
+      "route_id": "route_002",
+      "route_short_name": "202",
+      "route_long_name": "Uptown Connector",
+      "route_type": 3,
+      "direction_id": 0,
+      "direction_name": "Northbound"
+    },
+    {
+      "route_id": "route_003",
+      "route_short_name": "303",
+      "route_long_name": "East Loop",
+      "route_type": 3,
+      "direction_id": 1,
+      "direction_name": "Eastbound"
+    },
+    {
+      "route_id": "route_004",
+      "route_short_name": "404",
+      "route_long_name": "West Loop",
+      "route_type": 3,
+      "direction_id": 0,
+      "direction_name": "Westbound"
+    },
+    {
+      "route_id": "route_005",
+      "route_short_name": "505",
+      "route_long_name": "Airport Shuttle",
+      "route_type": 3,
+      "direction_id": 1,
+      "direction_name": "Outbound"
+    },
+    {
+      "route_id": "route_006",
+      "route_short_name": "606",
+      "route_long_name": "City Center Circulator",
+      "route_type": 3,
+      "direction_id": 0,
+      "direction_name": "Inbound"
+    },
+    {
+      "route_id": "route_007",
+      "route_short_name": "707",
+      "route_long_name": "University Line",
+      "route_type": 3,
+      "direction_id": 1,
+      "direction_name": "Southbound"
+    },
+    {
+      "route_id": "route_008",
+      "route_short_name": "808",
+      "route_long_name": "Industrial District",
+      "route_type": 3,
+      "direction_id": 0,
+      "direction_name": "Northbound"
+    },
+    {
+      "route_id": "route_009",
+      "route_short_name": "909",
+      "route_long_name": "Suburban Connector",
+      "route_type": 3,
+      "direction_id": 1,
+      "direction_name": "Eastbound"
+    },
+    {
+      "route_id": "route_010",
+      "route_short_name": "1010",
+      "route_long_name": "Regional Express",
+      "route_type": 3,
+      "direction_id": 0,
+      "direction_name": "Westbound"
+    },
+    {
+      "route_id": "route_011",
+      "route_short_name": "111",
+      "route_long_name": "Night Owl",
+      "route_type": 3,
+      "direction_id": 1,
+      "direction_name": "Outbound"
+    },
+    {
+      "route_id": "route_012",
+      "route_short_name": "121",
+      "route_long_name": "Hospital Line",
+      "route_type": 3,
+      "direction_id": 0,
+      "direction_name": "Inbound"
+    },
+    {
+      "route_id": "route_013",
+      "route_short_name": "131",
+      "route_long_name": "Park & Ride",
+      "route_type": 3,
+      "direction_id": 1,
+      "direction_name": "Southbound"
+    },
+    {
+      "route_id": "route_014",
+      "route_short_name": "141",
+      "route_long_name": "Tourist Shuttle",
+      "route_type": 3,
+      "direction_id": 0,
+      "direction_name": "Northbound"
+    },
+    {
+      "route_id": "route_015",
+      "route_short_name": "151",
+      "route_long_name": "Cultural District",
+      "route_type": 3,
+      "direction_id": 1,
+      "direction_name": "Eastbound"
+    }
+  ]
+  

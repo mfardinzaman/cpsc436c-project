@@ -1,0 +1,73 @@
+[
+    {
+      "vehicle_id": "vehicle_001",
+      "vehicle_label": "Bus 1",
+      "trip_id": "trip_001",
+      "current_status": "IN_TRANSIT",
+      "update_time": "2024-11-18T12:05:00Z"
+    },
+    {
+      "vehicle_id": "vehicle_002",
+      "vehicle_label": "Bus 2",
+      "trip_id": "trip_002",
+      "current_status": "STOPPED_AT",
+      "update_time": "2024-11-18T12:02:00Z"
+    },
+    {
+      "vehicle_id": "vehicle_003",
+      "vehicle_label": "Bus 3",
+      "trip_id": "trip_003",
+      "current_status": "IN_TRANSIT",
+      "update_time": "2024-11-18T12:03:00Z"
+    },
+    {
+      "vehicle_id": "vehicle_004",
+      "vehicle_label": "Bus 4",
+      "trip_id": "trip_004",
+      "current_status": "STOPPED_AT",
+      "update_time": "2024-11-18T12:01:00Z"
+    },
+    {
+      "vehicle_id": "vehicle_005",
+      "vehicle_label": "Bus 5",
+      "trip_id": "trip_005",
+      "current_status": "IN_TRANSIT",
+      "update_time": "2024-11-18T12:04:00Z"
+    },
+    {
+      "vehicle_id": "vehicle_006",
+      "vehicle_label": "Bus 6",
+      "trip_id": "trip_006",
+      "current_status": "IN_TRANSIT",
+      "update_time": "2024-11-18T12:00:00Z"
+    },
+    {
+      "vehicle_id": "vehicle_007",
+      "vehicle_label": "Bus 7",
+      "trip_id": "trip_007",
+      "current_status": "STOPPED_AT",
+      "update_time": "2024-11-18T11:59:00Z"
+    },
+    {
+      "vehicle_id": "vehicle_008",
+      "vehicle_label": "Bus 8",
+      "trip_id": "trip_008",
+      "current_status": "IN_TRANSIT",
+      "update_time": "2024-11-18T12:06:00Z"
+    },
+    {
+      "vehicle_id": "vehicle_009",
+      "vehicle_label": "Bus 9",
+      "trip_id": "trip_009",
+      "current_status": "STOPPED_AT",
+      "update_time": "2024-11-18T12:07:00Z"
+    },
+    {
+      "vehicle_id": "vehicle_010",
+      "vehicle_label": "Bus 10",
+      "trip_id": "trip_010",
+      "current_status": "IN_TRANSIT",
+      "update_time": "2024-11-18T12:08:00Z"
+    }
+  ]
+  
