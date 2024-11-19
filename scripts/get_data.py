@@ -1,11 +1,10 @@
 # get_data.py
 
-import os
+import sys
 import requests
 from google.transit import gtfs_realtime_pb2
 
-def get_data():
-    api_key = os.getenv("ApiKey")
+def get_data(api_key):
     trip_url = "https://gtfsapi.translink.ca/v3/gtfsrealtime?apikey=" + api_key
     position_url = "https://gtfsapi.translink.ca/v3/gtfsposition?apikey=" + api_key
     alerts_url = "https://gtfsapi.translink.ca/v3/gtfsalerts?apikey=" + api_key
@@ -33,4 +32,5 @@ def get_data():
 
 
 if __name__ == "__main__":
-    get_data()
+    api_key = sys.argv[1]    
+    get_data(api_key)
