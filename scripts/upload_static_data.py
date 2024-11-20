@@ -1,12 +1,12 @@
 # upload_static_data.py
 
-import sys
+import os
 import csv
 from cassandra.cluster import Cluster
 from ssl import SSLContext, PROTOCOL_TLSv1_2 , CERT_REQUIRED
 import boto3
 from cassandra_sigv4.auth import SigV4AuthProvider
-from cassandra.query import BatchStatement, ConsistencyLevel
+from cassandra.query import BatchStatement, ConsistencyLevel, BatchType
 
 
 def create_session(access_key_id, secret_access_key, session_token):
@@ -56,6 +56,11 @@ def create_stop_table(session):
         """
     )
     
+    
+def create_batch():
+    return BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=ConsistencyLevel.LOCAL_QUORUM)
+
+    
 def populate_route_table(session):
     directions = {}
     with open('../data/directions.txt', 'r') as f:
@@ -82,17 +87,18 @@ def populate_route_table(session):
             direction_names[(route_short_name_unpadded, direction_id)] = direction_name
     
                 
-    # insert_user = session.prepare(
-    #     """
-    #     INSERT INTO Route (route_id, route_short_name, route_long_name, route_type, direction_id, direction, direction_name)
-    #     VALUES (?, ?, ?, ?, ?, ?)
-    #     """
-    # )
-    # batch = BatchStatement(consistency_level=ConsistencyLevel.QUORUM)
+    insert_user = session.prepare(
+        """
+        INSERT INTO Route (route_id, route_short_name, route_long_name, route_type, direction_id, direction, direction_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+    )
+    batch = create_batch()
     
     with open("../data/routes.txt", 'r') as f:
         heading = next(f)
         csv_reader = csv.reader(f)
+        count = 0
         for row in csv_reader:
             route_id = row[0]
             route_short_name = row[2]
@@ -107,15 +113,23 @@ def populate_route_table(session):
                     direction_name = None
                     try:
                         direction_name = direction_names[(route_short_name.lstrip('0'), direction_id)]
-                        print(route_id, route_short_name, route_long_name, route_type, direction_id, direction, direction_name)
-                        # TODO: insert into table
+                        # print(route_id, route_short_name, route_long_name, route_type, direction_id, direction, direction_name)
+                        try:
+                            if count == 30:
+                                session.execute(batch)
+                                batch = create_batch()
+                                count = 0
+                            batch.add(insert_user, (route_id, route_short_name, route_long_name, int(route_type), int(direction_id), direction, direction_name))
+                            count += 1
+                        except Exception as e:
+                            print(f"Cassandra error: {e}")                            
                     except KeyError:
                         print("Direction name KeyError:", route_id, route_short_name, route_long_name, route_type, direction_id, direction)
             except KeyError:
                 print("Direction KeyError:", route_id, route_short_name, route_long_name, route_type)
                 continue
     
-    # session.execute(batch)
+    session.execute(batch)
 
 
 def populate_stop_table(session):
@@ -132,10 +146,10 @@ def list_tables(session):
     
 
 if __name__ == "__main__":
-    session = create_session(sys.argv[1], sys.argv[2], sys.argv[3])
+    session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
     # create_route_table(session)
     # create_stop_table(session)
-    populate_route_table(session)
+    # populate_route_table(session)
     # populate_stop_table(session)
     # drop_table(session, 'Route')
     # list_tables(session)
