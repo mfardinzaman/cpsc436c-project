@@ -47,10 +47,13 @@ def create_stop_table(session):
         """
         CREATE TABLE IF NOT EXISTS Stop(
             stop_id varchar,
+            stop_code varchar,
             stop_name varchar,
             latitude float,
             longitude float,
             zone_id varchar,
+            location_type int,
+            wheelchair_boarding int,
             PRIMARY KEY (stop_id)
         );
         """
@@ -133,7 +136,34 @@ def populate_route_table(session):
 
 
 def populate_stop_table(session):
-    pass
+    insert_user = session.prepare(
+        """
+        INSERT INTO Stop (stop_id, stop_code, stop_name, latitude, longitude, zone_id, location_type, wheelchair_boarding)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """
+    )
+    
+    with open('../data/stops.txt', 'r') as f:
+        heading = next(f)
+        csv_reader = csv.reader(f)
+        count = 0
+        batch = create_batch()
+        for row in csv_reader:
+            stop_id, stop_code, stop_name, stop_desc, stop_lat, stop_lon, \
+                zone_id, stop_url, location_type, parent_station, \
+                    wheelchair_boarding = row
+            try:
+                if count == 30:
+                    session.execute(batch)
+                    batch = create_batch()
+                    count = 0
+                batch.add(insert_user, (stop_id, stop_code, stop_name, float(stop_lat), float(stop_lon), 
+                                        zone_id, int(location_type), int(wheelchair_boarding)))
+                count += 1
+            except Exception as e:
+                print(f"Cassandra error: {e}")  
+            
+    session.execute(batch)
 
 
 def drop_table(session, table):
@@ -145,11 +175,18 @@ def list_tables(session):
     print(r.current_rows)
     
 
+def list_route_rows(session):
+    r = session.execute("SELECT * FROM route;")
+    for row in r.current_rows:
+        print(row)
+    
+
 if __name__ == "__main__":
     session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
     # create_route_table(session)
     # create_stop_table(session)
     # populate_route_table(session)
     # populate_stop_table(session)
-    # drop_table(session, 'Route')
+    # drop_table(session, 'Stop')
     # list_tables(session)
+    # list_route_rows(session)
