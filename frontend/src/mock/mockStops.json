@@ -1,0 +1,36 @@
+[
+    {
+        "stop_id": "stop_001",
+        "stop_code": "123",
+        "stop_name": "Main Street",
+        "latitude": 49.2827,
+        "longitude": -123.1207,
+        "zone_id": "zone_001",
+        "location_type": 0,
+        "wheelchair_boarding": 1,
+        "average_delay": 5,
+        "median_delay": 4,
+        "very_early_count": 3,
+        "very_late_count": 2,
+        "high_delay_count": 8,
+        "stop_count": 20,
+        "update_time": "2024-11-18T12:00:00Z"
+    },
+    {
+        "stop_id": "stop_002",
+        "stop_code": "456",
+        "stop_name": "Downtown",
+        "latitude": 49.2835,
+        "longitude": -123.1215,
+        "zone_id": "zone_002",
+        "location_type": 1,
+        "wheelchair_boarding": 1,
+        "average_delay": 6,
+        "median_delay": 5,
+        "very_early_count": 4,
+        "very_late_count": 3,
+        "high_delay_count": 12,
+        "stop_count": 25,
+        "update_time": "2024-11-18T12:10:00Z"
+    }
+]
