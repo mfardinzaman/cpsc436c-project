@@ -59,6 +59,28 @@ def create_stop_table(session):
         """
     )
     
+
+def create_route_statistic_table(session):
+    session.execute(
+        """
+        CREATE TABLE IF NOT EXISTS Route_Statistic(
+            route_id varchar,
+            route_short_name varchar,
+            route_long_name varchar,
+            route_type int,
+            direction_id int,
+            direction varchar,
+            average_delay int,
+            median_delay int,
+            very_early_count int,
+            very_late_count int,
+            vehicle_count int,
+            update_time timestamp,
+            PRIMARY KEY ((route_id, direction_id), update_time)
+        );
+        """
+    )
+    
     
 def create_batch():
     return BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=ConsistencyLevel.LOCAL_QUORUM)
