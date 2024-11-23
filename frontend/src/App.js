@@ -1,8 +1,7 @@
-import logo from './logo.svg';
 import './App.css';
 import RouteDashboard from './components/RouteDashboard';
-import { Typography } from '@mui/material';
 import StopsDashboard from './components/StopsDashboard';
+import AlertsSummary from './components/AlertsSummary';
 
 function App() {
   return (
@@ -12,6 +11,7 @@ function App() {
       </header>
       <RouteDashboard />
       <StopsDashboard />
+      <AlertsSummary />
     </div>
   );
 }
