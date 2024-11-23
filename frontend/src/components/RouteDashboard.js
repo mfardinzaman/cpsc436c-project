@@ -8,7 +8,6 @@ import RouteExpandableRow from "./RouteExpandableRow";
 const RouteDashboard = () => {
     const [routes] = useState(mockRoutes);
 
-    // Define table columns
     const columns = [
         {
             name: "route_short_name",
@@ -66,7 +65,7 @@ const RouteDashboard = () => {
             }}
         >
             <Typography variant="h4">
-                Routes Dashboard
+                Routes
             </Typography>
             <MUIDataTable
                 data={routes}

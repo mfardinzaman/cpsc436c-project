@@ -4,8 +4,8 @@ import { TableRow, TableCell } from "@mui/material";
 
 import mockBuses from "../mock/mockVehicles.json";
 
-const RouteExpandableRow = ({ rowData, rowMeta, routes }) => {
-    const [buses, setBuses] = useState(mockBuses)
+const StopsExpandableRow = ({ rowData, rowMeta, stops }) => {
+    const [buses, setBuses] = useState(mockBuses);
     const colSpan = rowData.length + 1;
 
     return (
@@ -16,12 +16,12 @@ const RouteExpandableRow = ({ rowData, rowMeta, routes }) => {
         >
             <TableCell colSpan={colSpan}>
                 <MUIDataTable
-                    title={"Buses Details"}
+                    title={`Buses at Stop: ${stops[rowMeta.dataIndex].stop_name}`}
                     data={buses.map((bus) => ({
                         label: bus.vehicle_label,
                         status: bus.current_status,
-                        lateness: Math.floor(Math.random() * 15), // mock
-                        lastStop: `Stop ${Math.floor(Math.random() * 10)}`, // mock
+                        lateness: Math.floor(Math.random() * 15), // mock lateness
+                        lastStop: `Stop ${Math.floor(Math.random() * 10)}`, // mock stop name
                         lastUpdate: new Date(bus.update_time).toLocaleString(),
                     }))}
                     columns={[
@@ -45,4 +45,4 @@ const RouteExpandableRow = ({ rowData, rowMeta, routes }) => {
     );
 };
 
-export default RouteExpandableRow
+export default StopsExpandableRow;
