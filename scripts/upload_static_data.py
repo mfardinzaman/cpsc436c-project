@@ -60,10 +60,10 @@ def create_stop_table(session):
     )
     
 
-def create_route_statistic_table(session):
+def create_route_statistic_tables(session):
     session.execute(
         """
-        CREATE TABLE IF NOT EXISTS Route_Statistic(
+        CREATE TABLE IF NOT EXISTS route_statistic_by_route(
             route_id varchar,
             route_short_name varchar,
             route_long_name varchar,
@@ -76,7 +76,26 @@ def create_route_statistic_table(session):
             very_late_count int,
             vehicle_count int,
             update_time timestamp,
-            PRIMARY KEY ((route_id, direction_id), update_time)
+            PRIMARY KEY (route_id, direction_id, update_time)
+        );
+        """
+    )
+    session.execute(
+        """
+        CREATE TABLE IF NOT EXISTS route_statistic_by_time(
+            route_id varchar,
+            route_short_name varchar,
+            route_long_name varchar,
+            route_type int,
+            direction_id int,
+            direction varchar,
+            average_delay int,
+            median_delay int,
+            very_early_count int,
+            very_late_count int,
+            vehicle_count int,
+            update_time timestamp,
+            PRIMARY KEY (update_time, route_id, direction_id)
         );
         """
     )
@@ -205,10 +224,11 @@ def list_route_rows(session):
 
 if __name__ == "__main__":
     session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
+    create_route_statistic_tables(session)
     # create_route_table(session)
     # create_stop_table(session)
     # populate_route_table(session)
     # populate_stop_table(session)
-    # drop_table(session, 'Stop')
+    # drop_table(session, 'Route_Statistic')
     # list_tables(session)
     # list_route_rows(session)
