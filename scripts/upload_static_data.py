@@ -63,13 +63,9 @@ def create_stop_table(session):
 def create_route_statistic_tables(session):
     session.execute(
         """
-        CREATE TABLE IF NOT EXISTS route_statistic_by_route(
+        CREATE TABLE IF NOT EXISTS route_stat_by_route(
             route_id varchar,
-            route_short_name varchar,
-            route_long_name varchar,
-            route_type int,
             direction_id int,
-            direction varchar,
             average_delay int,
             median_delay int,
             very_early_count int,
@@ -82,13 +78,14 @@ def create_route_statistic_tables(session):
     )
     session.execute(
         """
-        CREATE TABLE IF NOT EXISTS route_statistic_by_time(
+        CREATE TABLE IF NOT EXISTS route_stat_by_time(
             route_id varchar,
             route_short_name varchar,
             route_long_name varchar,
             route_type int,
             direction_id int,
             direction varchar,
+            direction_name varchar,
             average_delay int,
             median_delay int,
             very_early_count int,
