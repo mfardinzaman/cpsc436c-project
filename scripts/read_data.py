@@ -6,7 +6,7 @@ from cassandra.cluster import Cluster
 from ssl import SSLContext, PROTOCOL_TLSv1_2 , CERT_REQUIRED
 import boto3
 from cassandra_sigv4.auth import SigV4AuthProvider
-from cassandra.query import BatchStatement, ConsistencyLevel, BatchType
+from cassandra.query import BatchStatement, ConsistencyLevel, BatchType, SimpleStatement
 
 
 HIGH_DELAY = 300
@@ -31,6 +31,10 @@ def create_session(access_key_id, secret_access_key, session_token):
 
 def create_batch():
     return BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=ConsistencyLevel.LOCAL_QUORUM)
+
+
+def create_statement(query):
+    return SimpleStatement(query_string=query, consistency_level=ConsistencyLevel.LOCAL_QUORUM)
 
 
 def get_trip_info(trip_data):
@@ -140,48 +144,41 @@ def ingest_new_stop_updates(session, stop_updates):
     return
 
 
-def ingest_route_stats_by_route(session, route_stats, update_time):
-    insert_user = session.prepare(
-        """
-        INSERT INTO route_statistic_by_route (
-            route_id, 
-            direction_id,
-            average_delay, 
-            median_delay, 
-            very_early_count,
-            very_late_count,
-            vehicle_count,
-            update_time
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """
-    )
-    
-    batch = create_batch()
-    count = 0
+def ingest_route_stats_by_route(session, route_stats, update_time):    
+    results = []
     for route_key, stats in route_stats.items():
-        if count == 30:
-            session.execute(batch)
-            batch = create_batch()
-            count = 0
-        batch.add(insert_user, (
-            route_key[0],
-            route_key[1],
-            stats['mean'],
-            stats['median'],
-            stats['very_early'],
-            stats['very_late'],
-            stats['count'],
-            update_time
-        ))
-        count += 1
-    session.execute(batch)
+        statement = create_statement(
+            f"""
+            INSERT INTO route_stat_by_route_test (
+                route_id, 
+                direction_id,
+                average_delay, 
+                median_delay, 
+                very_early_count,
+                very_late_count,
+                vehicle_count,
+                update_time
+            )
+            VALUES (
+                '{route_key[0]}', 
+                {route_key[1]}, 
+                {stats['mean']},
+                {stats['median']},
+                {stats['very_early']},
+                {stats['very_late']},
+                {stats['count']},
+                '{update_time.isoformat(timespec='milliseconds')}'
+            )
+            """
+        )
+        results.append(session.execute_async(statement))
+    return results
 
 
 def ingest_route_stats_by_time(session, route_stats):
     insert_user = session.prepare(
         """
-        INSERT INTO route_statistic_by_time (
+        INSERT INTO route_stat_by_time_test (
             route_id,
             route_short_name, 
             route_long_name, 
@@ -201,10 +198,39 @@ def ingest_route_stats_by_time(session, route_stats):
     )
 
 
-def ingest_route_stats(session, route_stats):
-    # TODO: Insert route_stats into its tables in batches of 30
+def ingest_stop_stats_by_stop(session, stop_stats):
+    # TODO
 
     return
+
+def ingest_stop_stats_by_time(session, stop_stats):
+    # TODO
+
+    return
+
+
+def get_route_data(session, route_stats):
+    results = []
+    for route_id, direction_id in route_stats.keys():
+        query = SimpleStatement(f"SELECT * FROM route WHERE route_id = '{route_id}' AND direction_id = {direction_id})")
+        session.execute_async
+        
+    print(query[:-4])
+
+
+def block_for_results(results):
+    for result in results:
+        result.result()
+        
+        
+
+def delete_test_records(session, table):
+    results = session.execute(f"SELECT route_id, direction_id, update_time FROM {table} WHERE update_time < '2020-01-01' ALLOW FILTERING")
+    for result in results:
+        print(result[0], result[1], result[2])
+        statement = SimpleStatement(f"DELETE FROM {table} WHERE route_id = '{result[0]}' AND direction_id = {result[1]} AND update_time < '2020-01-01';",
+                                    consistency_level=ConsistencyLevel.LOCAL_QUORUM)
+        session.execute(statement)
     
 
 
@@ -212,5 +238,8 @@ if __name__ == '__main__':
     session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
     path = '../data/2024-11-21 18_41_40.734247.json'
     route_stats, stop_stats = read_data(path)
-    # ingest_route_stats(session, route_stats)
-    ingest_route_stats_by_route(session, route_stats)
+    
+    # get_route_data(None, route_stats)
+    
+    results = ingest_route_stats_by_route(session, route_stats, datetime.now())
+    block_for_results(results)

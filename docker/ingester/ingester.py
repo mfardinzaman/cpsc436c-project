@@ -6,7 +6,7 @@ import boto3
 from cassandra.cluster import Cluster, DCAwareRoundRobinPolicy
 from ssl import SSLContext, PROTOCOL_TLSv1_2 , CERT_REQUIRED
 from cassandra_sigv4.auth import SigV4AuthProvider
-from cassandra.query import BatchStatement, ConsistencyLevel, BatchType
+from cassandra.query import SimpleStatement, BatchStatement, ConsistencyLevel, BatchType
 
 
 HIGH_DELAY = 300
@@ -33,6 +33,11 @@ def create_session():
 
 def create_batch():
     return BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=ConsistencyLevel.LOCAL_QUORUM)
+
+
+def create_statement(query):
+    return SimpleStatement(query_string=query, consistency_level=ConsistencyLevel.LOCAL_QUORUM)
+
 
 
 def get_trip_info(trip_data):
@@ -131,42 +136,35 @@ def read_data(json_string):
     return route_stats, stop_stats
 
 
-def ingest_route_stats_by_route(session, route_stats, update_time):
-    insert_user = session.prepare(
-        """
-        INSERT INTO route_stat_by_route (
-            route_id, 
-            direction_id,
-            average_delay, 
-            median_delay, 
-            very_early_count,
-            very_late_count,
-            vehicle_count,
-            update_time
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """
-    )
-    
-    batch = create_batch()
-    count = 0
+def ingest_route_stats_by_route(session, route_stats, update_time):    
+    results = []
     for route_key, stats in route_stats.items():
-        if count == 30:
-            session.execute(batch)
-            batch = create_batch()
-            count = 0
-        batch.add(insert_user, (
-            route_key[0],
-            route_key[1],
-            stats['mean'],
-            stats['median'],
-            stats['very_early'],
-            stats['very_late'],
-            stats['count'],
-            update_time
-        ))
-        count += 1
-    session.execute(batch)
+        statement = create_statement(
+            f"""
+            INSERT INTO route_stat_by_route(
+                route_id, 
+                direction_id,
+                average_delay, 
+                median_delay, 
+                very_early_count,
+                very_late_count,
+                vehicle_count,
+                update_time
+            )
+            VALUES (
+                '{route_key[0]}', 
+                {route_key[1]}, 
+                {stats['mean']},
+                {stats['median']},
+                {stats['very_early']},
+                {stats['very_late']},
+                {stats['count']},
+                '{update_time.isoformat(timespec='milliseconds')}'
+            )
+            """
+        )
+        results.append(session.execute_async(statement))
+    return results
 
 
 def get_string_and_upload_time(event):
@@ -181,13 +179,20 @@ def get_string_and_upload_time(event):
     return json_string, upload_time
 
 
+def block_for_results(results):
+    for result in results:
+        result.result()
+
+
 def lambda_handler(event, context):
     try:
         json_string, upload_time = get_string_and_upload_time(event)
         route_stats, stop_stats = read_data(json_string)
 
         session = create_session()
-        ingest_route_stats_by_route(session, route_stats, upload_time)
+        route_stats_by_route_results = ingest_route_stats_by_route(session, route_stats, upload_time)
+        
+        block_for_results(route_stats_by_route_results)
 
         return {
             'statusCode': 200,

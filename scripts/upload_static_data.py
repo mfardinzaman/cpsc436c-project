@@ -60,10 +60,11 @@ def create_stop_table(session):
     )
     
 
-def create_route_statistic_tables(session):
+def create_route_statistic_tables(session, test=False):
+    test_label = "_test" if test else ""
     session.execute(
-        """
-        CREATE TABLE IF NOT EXISTS route_stat_by_route(
+        f"""
+        CREATE TABLE IF NOT EXISTS route_stat_by_route{test_label}(
             route_id varchar,
             direction_id int,
             average_delay int,
@@ -77,8 +78,8 @@ def create_route_statistic_tables(session):
         """
     )
     session.execute(
-        """
-        CREATE TABLE IF NOT EXISTS route_stat_by_time(
+        f"""
+        CREATE TABLE IF NOT EXISTS route_stat_by_time{test_label}(
             route_id varchar,
             route_short_name varchar,
             route_long_name varchar,
@@ -221,11 +222,11 @@ def list_route_rows(session):
 
 if __name__ == "__main__":
     session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
-    create_route_statistic_tables(session)
+    create_route_statistic_tables(session, test=True)
     # create_route_table(session)
     # create_stop_table(session)
     # populate_route_table(session)
     # populate_stop_table(session)
-    # drop_table(session, 'Route_Statistic')
+    # drop_table(session, 'route_stat_by_route')
     # list_tables(session)
     # list_route_rows(session)
