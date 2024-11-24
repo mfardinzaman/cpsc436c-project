@@ -2,7 +2,7 @@ import json
 import statistics
 from datetime import datetime
 import boto3
-from cassandra.cluster import Cluster
+from cassandra.cluster import Cluster, DCAwareRoundRobinPolicy
 from ssl import SSLContext, PROTOCOL_TLSv1_2 , CERT_REQUIRED
 from cassandra_sigv4.auth import SigV4AuthProvider
 from cassandra.query import BatchStatement, ConsistencyLevel, BatchType
@@ -22,7 +22,9 @@ def create_session():
         ['cassandra.ca-central-1.amazonaws.com'], 
         ssl_context=ssl_context, 
         auth_provider=auth_provider, 
-        port=9142
+        port=9142,
+        load_balancing_policy=DCAwareRoundRobinPolicy,
+        protocol_version=4
     )
     session = cluster.connect(keyspace='Translink')
     return session
@@ -169,7 +171,8 @@ def ingest_route_stats_by_route(session, route_stats, update_time):
 def get_string_and_upload_time(event):
     s3_client = boto3.client('s3')
     s3_Bucket_Name = event["Records"][0]["s3"]["bucket"]["name"]
-    s3_File_Name = event["Records"][0]["s3"]["object"]["key"]
+    s3_File_Name = event["Records"][0]["s3"]["object"]["key"].replace("+", " ")
+    print("Accessing file", s3_File_Name, "in bucket", s3_Bucket_Name)
     upload_time = datetime.fromisoformat(event["Records"][0]["eventTime"])
     object = s3_client.get_object(Bucket=s3_Bucket_Name, Key=s3_File_Name)
     body = object['Body']
