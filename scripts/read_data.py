@@ -1,8 +1,36 @@
 import json
 import statistics
+import os
+from datetime import datetime
+from cassandra.cluster import Cluster
+from ssl import SSLContext, PROTOCOL_TLSv1_2 , CERT_REQUIRED
+import boto3
+from cassandra_sigv4.auth import SigV4AuthProvider
+from cassandra.query import BatchStatement, ConsistencyLevel, BatchType
 
 
 HIGH_DELAY = 300
+
+
+def create_session(access_key_id, secret_access_key, session_token):
+    ssl_context = SSLContext(PROTOCOL_TLSv1_2)
+    ssl_context.load_verify_locations('../data/sf-class2-root.crt')
+    ssl_context.verify_mode = CERT_REQUIRED
+
+    boto_session = boto3.Session(aws_access_key_id=access_key_id,
+                                aws_secret_access_key=secret_access_key,
+                                aws_session_token=session_token,
+                                region_name='ca-central-1')
+    auth_provider = SigV4AuthProvider(boto_session)
+
+    cluster = Cluster(['cassandra.ca-central-1.amazonaws.com'], ssl_context=ssl_context, auth_provider=auth_provider,
+                    port=9142)
+    session = cluster.connect(keyspace='Translink')
+    return session
+
+
+def create_batch():
+    return BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=ConsistencyLevel.LOCAL_QUORUM)
 
 
 def get_trip_info(trip_data):
@@ -112,14 +140,77 @@ def ingest_new_stop_updates(session, stop_updates):
     return
 
 
-def ingest_stats(session, route_stats, stop_stats):
-    # TODO: Insert route_stats and stop_stats into their respective tables in batches of 30
+def ingest_route_stats_by_route(session, route_stats, update_time):
+    insert_user = session.prepare(
+        """
+        INSERT INTO route_statistic_by_route (
+            route_id, 
+            direction_id,
+            average_delay, 
+            median_delay, 
+            very_early_count,
+            very_late_count,
+            vehicle_count,
+            update_time
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """
+    )
+    
+    batch = create_batch()
+    count = 0
+    for route_key, stats in route_stats.items():
+        if count == 30:
+            session.execute(batch)
+            batch = create_batch()
+            count = 0
+        batch.add(insert_user, (
+            route_key[0],
+            route_key[1],
+            stats['mean'],
+            stats['median'],
+            stats['very_early'],
+            stats['very_late'],
+            stats['count'],
+            update_time
+        ))
+        count += 1
+    session.execute(batch)
+
+
+def ingest_route_stats_by_time(session, route_stats):
+    insert_user = session.prepare(
+        """
+        INSERT INTO route_statistic_by_time (
+            route_id,
+            route_short_name, 
+            route_long_name, 
+            route_type, 
+            direction_id, 
+            direction, 
+            direction_name, 
+            average_delay, 
+            median_delay, 
+            very_early_count,
+            very_late_count,
+            vehicle_count,
+            update_time
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+    )
+
+
+def ingest_route_stats(session, route_stats):
+    # TODO: Insert route_stats into its tables in batches of 30
+
     return
     
 
 
 if __name__ == '__main__':
+    session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
     path = '../data/2024-11-21 18_41_40.734247.json'
     route_stats, stop_stats = read_data(path)
-    # for route_key, stat in route_stats.items():
-    #     print(route_key, stat)
+    # ingest_route_stats(session, route_stats)
+    ingest_route_stats_by_route(session, route_stats)

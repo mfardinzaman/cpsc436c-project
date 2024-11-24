@@ -1,5 +1,6 @@
 import json
 import statistics
+from datetime import datetime
 import boto3
 from cassandra.cluster import Cluster
 from ssl import SSLContext, PROTOCOL_TLSv1_2 , CERT_REQUIRED
@@ -25,6 +26,10 @@ def create_session():
     )
     session = cluster.connect(keyspace='Translink')
     return session
+
+
+def create_batch():
+    return BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=ConsistencyLevel.LOCAL_QUORUM)
 
 
 def get_trip_info(trip_data):
@@ -123,22 +128,62 @@ def read_data(json_string):
     return route_stats, stop_stats
 
 
-def get_string_from_object(event):
+def ingest_route_stats_by_route(session, route_stats, update_time):
+    insert_user = session.prepare(
+        """
+        INSERT INTO route_stat_by_route (
+            route_id, 
+            direction_id,
+            average_delay, 
+            median_delay, 
+            very_early_count,
+            very_late_count,
+            vehicle_count,
+            update_time
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """
+    )
+    
+    batch = create_batch()
+    count = 0
+    for route_key, stats in route_stats.items():
+        if count == 30:
+            session.execute(batch)
+            batch = create_batch()
+            count = 0
+        batch.add(insert_user, (
+            route_key[0],
+            route_key[1],
+            stats['mean'],
+            stats['median'],
+            stats['very_early'],
+            stats['very_late'],
+            stats['count'],
+            update_time
+        ))
+        count += 1
+    session.execute(batch)
+
+
+def get_string_and_upload_time(event):
     s3_client = boto3.client('s3')
     s3_Bucket_Name = event["Records"][0]["s3"]["bucket"]["name"]
     s3_File_Name = event["Records"][0]["s3"]["object"]["key"]
+    upload_time = datetime.fromisoformat(event["Records"][0]["eventTime"])
     object = s3_client.get_object(Bucket=s3_Bucket_Name, Key=s3_File_Name)
     body = object['Body']
     json_string = body.read().decode('utf-8')
-    return json_string
+    return json_string, upload_time
 
 
 def lambda_handler(event, context):
     try:
-        json_string = get_string_from_object(event)
+        json_string, upload_time = get_string_and_upload_time(event)
         route_stats, stop_stats = read_data(json_string)
 
         session = create_session()
+        ingest_route_stats_by_route(session, route_stats, upload_time)
 
         return {
             'statusCode': 200,
