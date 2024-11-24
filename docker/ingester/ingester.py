@@ -136,6 +136,14 @@ def read_data(json_string):
     return route_stats, stop_stats
 
 
+def get_route_data(session, route_stats):
+    results = {}
+    for route_id, direction_id in route_stats.keys():
+        query = create_statement(f"SELECT * FROM route WHERE route_id = '{route_id}' AND direction_id = {direction_id};")
+        results[(route_id, direction_id)] = session.execute_async(query)
+    return results
+
+
 def ingest_route_stats_by_route(session, route_stats, update_time):    
     results = []
     for route_key, stats in route_stats.items():
@@ -167,6 +175,59 @@ def ingest_route_stats_by_route(session, route_stats, update_time):
     return results
 
 
+def ingest_route_stats_by_time(session, route_stats, route_results, update_time):
+    results = []
+    
+    insert_stat = session.prepare(
+        """
+        INSERT INTO route_stat_by_time_test (
+            route_id,
+            route_short_name, 
+            route_long_name, 
+            route_type, 
+            direction_id, 
+            direction, 
+            direction_name, 
+            average_delay, 
+            median_delay, 
+            very_early_count,
+            very_late_count,
+            vehicle_count,
+            update_time
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+    )
+    
+    batch = create_batch()
+    count = 0
+    for route_key, stats, in route_stats.items():
+        if count == 30:
+            results.append(session.execute_async(batch))
+            batch = create_batch()
+            count = 0
+        route_details = route_results[route_key].result()[0]
+        batch.add(insert_stat, (
+            route_key[0],
+            route_details.route_short_name,
+            route_details.route_long_name,
+            route_details.route_type,
+            route_key[1],
+            route_details.direction,
+            route_details.direction_name,
+            stats['mean'],
+            stats['median'],
+            stats['very_early'],
+            stats['very_late'],
+            stats['count'],
+            update_time
+        ))
+        count += 1
+        
+    results.append(session.execute_async(batch))
+    return results
+
+
 def get_string_and_upload_time(event):
     s3_client = boto3.client('s3')
     s3_Bucket_Name = event["Records"][0]["s3"]["bucket"]["name"]
@@ -190,9 +251,12 @@ def lambda_handler(event, context):
         route_stats, stop_stats = read_data(json_string)
 
         session = create_session()
+        route_detail_results = get_route_data(session, route_stats)
         route_stats_by_route_results = ingest_route_stats_by_route(session, route_stats, upload_time)
+        route_stats_by_time_results = ingest_route_stats_by_time(session, route_stats, route_detail_results, upload_time)
         
         block_for_results(route_stats_by_route_results)
+        block_for_results(route_stats_by_time_results)
 
         return {
             'statusCode': 200,

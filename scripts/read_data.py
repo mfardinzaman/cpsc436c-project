@@ -175,8 +175,10 @@ def ingest_route_stats_by_route(session, route_stats, update_time):
     return results
 
 
-def ingest_route_stats_by_time(session, route_stats):
-    insert_user = session.prepare(
+def ingest_route_stats_by_time(session, route_stats, route_results, update_time):
+    results = []
+    
+    insert_stat = session.prepare(
         """
         INSERT INTO route_stat_by_time_test (
             route_id,
@@ -196,6 +198,34 @@ def ingest_route_stats_by_time(session, route_stats):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
     )
+    
+    batch = create_batch()
+    count = 0
+    for route_key, stats, in route_stats.items():
+        if count == 30:
+            results.append(session.execute_async(batch))
+            batch = create_batch()
+            count = 0
+        route_details = route_results[route_key].result()[0]
+        batch.add(insert_stat, (
+            route_key[0],
+            route_details.route_short_name,
+            route_details.route_long_name,
+            route_details.route_type,
+            route_key[1],
+            route_details.direction,
+            route_details.direction_name,
+            stats['mean'],
+            stats['median'],
+            stats['very_early'],
+            stats['very_late'],
+            stats['count'],
+            update_time
+        ))
+        count += 1
+        
+    results.append(session.execute_async(batch))
+    return results
 
 
 def ingest_stop_stats_by_stop(session, stop_stats):
@@ -210,12 +240,11 @@ def ingest_stop_stats_by_time(session, stop_stats):
 
 
 def get_route_data(session, route_stats):
-    results = []
+    results = {}
     for route_id, direction_id in route_stats.keys():
-        query = SimpleStatement(f"SELECT * FROM route WHERE route_id = '{route_id}' AND direction_id = {direction_id})")
-        session.execute_async
-        
-    print(query[:-4])
+        query = create_statement(f"SELECT * FROM route WHERE route_id = '{route_id}' AND direction_id = {direction_id};")
+        results[(route_id, direction_id)] = session.execute_async(query)
+    return results
 
 
 def block_for_results(results):
@@ -239,7 +268,10 @@ if __name__ == '__main__':
     path = '../data/2024-11-21 18_41_40.734247.json'
     route_stats, stop_stats = read_data(path)
     
-    # get_route_data(None, route_stats)
+    route_results = get_route_data(session, route_stats)
+    route_stats_by_time_results = ingest_route_stats_by_time(session, route_stats, route_results, datetime.now())
     
-    results = ingest_route_stats_by_route(session, route_stats, datetime.now())
-    block_for_results(results)
+    # results = ingest_route_stats_by_route(session, route_stats, datetime.now())
+    # block_for_results(results)
+    
+    block_for_results(route_stats_by_time_results)
