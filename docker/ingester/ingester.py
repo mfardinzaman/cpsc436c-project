@@ -180,7 +180,7 @@ def ingest_route_stats_by_time(session, route_stats, route_results, update_time)
     
     insert_stat = session.prepare(
         """
-        INSERT INTO route_stat_by_time_test (
+        INSERT INTO route_stat_by_time (
             route_id,
             route_short_name, 
             route_long_name, 
