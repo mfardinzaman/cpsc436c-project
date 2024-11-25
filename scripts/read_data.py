@@ -193,9 +193,10 @@ def ingest_route_stats_by_time(session, route_stats, route_results, update_time)
             very_early_count,
             very_late_count,
             vehicle_count,
+            day,
             update_time
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
     )
     
@@ -220,6 +221,7 @@ def ingest_route_stats_by_time(session, route_stats, route_results, update_time)
             stats['very_early'],
             stats['very_late'],
             stats['count'],
+            update_time.date(),
             update_time
         ))
         count += 1
