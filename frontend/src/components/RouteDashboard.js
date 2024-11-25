@@ -1,26 +1,34 @@
-import AWS from 'aws-sdk'
+import AWS from 'aws-sdk';
 import React, { useEffect, useState } from "react";
 import MUIDataTable from "mui-datatables";
 import mockRoutes from "../mock/mockRoutes.json";
-
-import { Typography, Box } from "@mui/material";
+import { Typography, Box, CircularProgress } from "@mui/material";
 import RouteExpandableRow from "./RouteExpandableRow";
 import { retrieveRoutes } from '../utils/get_route_data';
 
 const RouteDashboard = () => {
     const [routes, setRoutes] = useState(mockRoutes);
+    const [loading, setLoading] = useState(false);
 
-    const GetRoutes = async() => {
+    const GetRoutes = async () => {
+        setLoading(true);
         try {
             const result = await retrieveRoutes();
-            if (result.statusCode === 200) {
-                setRoutes(result.body);
+            const routesData = JSON.parse(result.Payload);
+            console.log('result ' + JSON.stringify(result));
+
+            if (result.StatusCode === 200) {
+                setRoutes(routesData.body);
+            } else {
+                console.log('Error fetching routes:', result.statusCode);
             }
         } catch (error) {
-            console.log(error)
+            console.log('Error:', error);
+        } finally {
+            setLoading(false);
         }
-    }
-    
+    };
+
 
     const columns = [
         {
@@ -31,27 +39,27 @@ const RouteDashboard = () => {
             name: "route_long_name",
             label: "Route Long Name",
         },
-        {
-            name: "numBuses",
-            label: "Number of Buses",
-            options: {
-                searchable: false
-            }
-        },
-        {
-            name: "avgLateness",
-            label: "Average Lateness (min)",
-            options: {
-                searchable: false
-            }
-        },
-        {
-            name: "latePercentage",
-            label: "% > 5 Min Late",
-            options: {
-                searchable: false
-            }
-        },
+        // {
+        //     name: "numBuses",
+        //     label: "Number of Buses",
+        //     options: {
+        //         searchable: false,
+        //     }
+        // },
+        // {
+        //     name: "avgLateness",
+        //     label: "Average Lateness (min)",
+        //     options: {
+        //         searchable: false,
+        //     }
+        // },
+        // {
+        //     name: "latePercentage",
+        //     label: "% > 5 Min Late",
+        //     options: {
+        //         searchable: false,
+        //     }
+        // },
     ];
 
     const options = {
@@ -70,11 +78,11 @@ const RouteDashboard = () => {
         download: false,
         filter: false
     };
+
     useEffect(() => {
         GetRoutes();
-        // Why did I even bring ESLint here
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, []);
 
     return (
         <Box
@@ -86,11 +94,16 @@ const RouteDashboard = () => {
             <Typography variant="h4">
                 Routes
             </Typography>
-            <MUIDataTable
-                data={routes}
-                columns={columns}
-                options={options}
-            />
+
+            {loading ? (  // Show loading indicator while fetching
+                <CircularProgress />
+            ) : (
+                <MUIDataTable
+                    data={routes}
+                    columns={columns}
+                    options={options}
+                />
+            )}
         </Box>
     );
 };
