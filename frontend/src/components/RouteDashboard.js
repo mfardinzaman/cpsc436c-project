@@ -1,12 +1,27 @@
-import React, { useState } from "react";
+import AWS from 'aws-sdk'
+import React, { useEffect, useState } from "react";
 import MUIDataTable from "mui-datatables";
 import mockRoutes from "../mock/mockRoutes.json";
 
 import { Typography, Box } from "@mui/material";
 import RouteExpandableRow from "./RouteExpandableRow";
+import { retrieveRoutes } from '../utils/get_route_data';
 
 const RouteDashboard = () => {
-    const [routes] = useState(mockRoutes);
+    const [routes, setRoutes] = useState(mockRoutes);
+
+    const GetRoutes = async() => {
+        await retrieveRoutes.then((result) => {
+            if (result.statusCode === 200) {
+                setRoutes(result.body);
+            } else {
+                console.log(result.statusCode);
+            }
+        }).catch((error) => {
+            console.log(error);
+        });
+    }
+    
 
     const columns = [
         {
@@ -56,6 +71,11 @@ const RouteDashboard = () => {
         download: false,
         filter: false
     };
+    useEffect(() => {
+        GetRoutes();
+        // Why did I even bring ESLint here
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     return (
         <Box
