@@ -5,6 +5,7 @@ import mockRoutes from "../mock/mockRoutes.json";
 import { Typography, Box, CircularProgress } from "@mui/material";
 import RouteExpandableRow from "./RouteExpandableRow";
 import { retrieveRoutes } from '../utils/get_route_data';
+import service from '../services/services';
 
 const RouteDashboard = () => {
     const [routes, setRoutes] = useState(mockRoutes);
@@ -13,12 +14,10 @@ const RouteDashboard = () => {
     const GetRoutes = async () => {
         setLoading(true);
         try {
-            const result = await retrieveRoutes();
-            const routesData = JSON.parse(result.Payload);
-            console.log('result ' + JSON.stringify(result));
-
-            if (result.StatusCode === 200) {
-                setRoutes(routesData.body);
+            const result = await service.getRoutes();
+    
+            if (result.statusCode === 200) {
+                setRoutes(result.body);
             } else {
                 console.log('Error fetching routes:', result.statusCode);
             }
