@@ -92,9 +92,10 @@ def create_route_statistic_tables(session, test=False):
             very_early_count int,
             very_late_count int,
             vehicle_count int,
+            day date,
             update_time timestamp,
-            PRIMARY KEY (update_time, route_id, direction_id)
-        );
+            PRIMARY KEY (day, update_time, route_id, direction_id)  
+        )   WITH CLUSTERING ORDER BY (update_time DESC);
         """
     )
     
@@ -222,11 +223,11 @@ def list_route_rows(session):
 
 if __name__ == "__main__":
     session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
-    create_route_statistic_tables(session, test=True)
+    create_route_statistic_tables(session, test=False)
     # create_route_table(session)
     # create_stop_table(session)
     # populate_route_table(session)
     # populate_stop_table(session)
-    # drop_table(session, 'route_stat_by_route')
+    # drop_table(session, 'route_stat_by_time')
     # list_tables(session)
     # list_route_rows(session)
