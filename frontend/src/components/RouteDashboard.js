@@ -75,7 +75,8 @@ const RouteDashboard = () => {
         search: true,
         print: false,
         download: false,
-        filter: false
+        filter: false,
+        responsive: 'standard'
     };
 
     useEffect(() => {

@@ -38,6 +38,7 @@ const RouteExpandableRow = ({ rowData, rowMeta, routes }) => {
                         print: false,
                         download: false,
                         filter: false,
+                        responsive: 'standard'
                     }}
                 />
             </TableCell>
