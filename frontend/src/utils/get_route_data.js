@@ -1,6 +1,6 @@
 import AWS from 'aws-sdk'
 
-require('dotenv').config()
+// require('dotenv').config()
 
 const invokeLambda = (lambda, params) => new Promise((resolve, reject) => {
     lambda.invoke(params, (error, data) => {
@@ -14,8 +14,8 @@ const invokeLambda = (lambda, params) => new Promise((resolve, reject) => {
 
 export const retrieveRoutes = () => {
     AWS.config.update({ 
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID, 
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY, 
+        accessKeyId: process.env.REACT_APP_AWS_ACCESS_KEY_ID, 
+        secretAccessKey: process.env.REACT_APP_AWS_SECRET_ACCESS_KEY, 
         region: 'ca-central-1',
     });
     

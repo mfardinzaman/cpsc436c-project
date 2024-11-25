@@ -11,15 +11,14 @@ const RouteDashboard = () => {
     const [routes, setRoutes] = useState(mockRoutes);
 
     const GetRoutes = async() => {
-        await retrieveRoutes.then((result) => {
+        try {
+            const result = await retrieveRoutes();
             if (result.statusCode === 200) {
                 setRoutes(result.body);
-            } else {
-                console.log(result.statusCode);
             }
-        }).catch((error) => {
-            console.log(error);
-        });
+        } catch (error) {
+            console.log(error)
+        }
     }
     
 
