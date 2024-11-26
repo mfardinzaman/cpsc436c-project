@@ -73,8 +73,8 @@ def create_route_statistic_tables(session, test=False):
             very_late_count int,
             vehicle_count int,
             update_time timestamp,
-            PRIMARY KEY (route_id, direction_id, update_time)
-        );
+            PRIMARY KEY ((route_id, direction_id), update_time)
+        )   WITH CLUSTERING ORDER BY (update_time DESC);
         """
     )
     session.execute(
@@ -96,6 +96,64 @@ def create_route_statistic_tables(session, test=False):
             update_time timestamp,
             PRIMARY KEY (day, update_time, route_id, direction_id)  
         )   WITH CLUSTERING ORDER BY (update_time DESC);
+        """
+    )
+    
+    
+def create_stop_statistic_tables(session, test=False):
+    test_label = "_test" if test else ""
+    session.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS stop_stat_by_time{test_label}(
+            stop_id varchar,
+            stop_code varchar,
+            stop_name varchar,
+            latitude float,
+            longitude float,
+            zone_id varchar,
+            location_type int,
+            wheelchair_boarding int,
+            average_delay int,
+            median_delay int,
+            very_early_count int,
+            very_late_count int,
+            stop_count int,
+            day date,
+            update_time timestamp,
+            PRIMARY KEY (day, update_time, stop_id)
+        ) WITH CLUSTERING ORDER BY (update_time DESC)
+        """
+    )
+    
+    session.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS stop_stat_by_stop{test_label}(
+            stop_id varchar,
+            average_delay int,
+            median_delay int,
+            very_early_count int,
+            very_late_count int,
+            stop_count int,
+            update_time timestamp,
+            PRIMARY KEY (stop_id, update_time)
+        ) WITH CLUSTERING ORDER BY (update_time DESC)
+        """
+    )
+    
+    
+def create_stop_update_table(session):
+    session.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS stop_update(
+            stop_id varchar,
+            trip_id varchar,
+            route_id varchar,
+            direction_id int,
+            vehicle_label varchar,
+            delay int,
+            stop_time timestamp,
+            PRIMARY KEY (stop_id, stop_time, trip_id)
+        ) WITH CLUSTERING ORDER BY (stop_time DESC);
         """
     )
     
@@ -223,11 +281,14 @@ def list_route_rows(session):
 
 if __name__ == "__main__":
     session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
-    create_route_statistic_tables(session, test=False)
+    # create_route_statistic_tables(session, test=False)
+    create_stop_statistic_tables(session, test=True)
+    # create_stop_update_table(session)
     # create_route_table(session)
     # create_stop_table(session)
     # populate_route_table(session)
     # populate_stop_table(session)
-    # drop_table(session, 'route_stat_by_time')
+    # drop_table(session, 'stop_stat_by_stop')
+    # drop_table(session, 'stop_stat_by_stop_test')
     # list_tables(session)
     # list_route_rows(session)

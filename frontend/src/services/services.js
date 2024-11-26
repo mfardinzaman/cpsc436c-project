@@ -11,4 +11,5 @@ const getRouteStats = async () => {
 }
 
 const service = { getRoutes, getRouteStats }
+
 export default service

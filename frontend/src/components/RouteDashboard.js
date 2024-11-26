@@ -13,7 +13,7 @@ const RouteDashboard = () => {
         setLoading(true);
         try {
             const result = await service.getRouteStats();
-    
+          
             if (result.statusCode === 200) {
                 setRoutes(result.body);
             } else {
