@@ -99,6 +99,23 @@ def create_route_statistic_tables(session, test=False):
         """
     )
     
+def create_stop_update_tables(session):
+    for test_label in ("_test", ""):
+        session.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS stop_update{test_label}(
+                stop_id varchar,
+                trip_id varchar,
+                route_id varchar,
+                direction_id int,
+                vehicle_label varchar,
+                delay int,
+                stop_time timestamp,
+                PRIMARY KEY (stop_id, stop_time, trip_id)
+            )
+            """
+        )
+    
     
 def create_batch():
     return BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=ConsistencyLevel.LOCAL_QUORUM)
@@ -223,7 +240,8 @@ def list_route_rows(session):
 
 if __name__ == "__main__":
     session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
-    create_route_statistic_tables(session, test=False)
+    # create_route_statistic_tables(session, test=False)
+    create_stop_update_tables(session)
     # create_route_table(session)
     # create_stop_table(session)
     # populate_route_table(session)
