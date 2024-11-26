@@ -104,8 +104,8 @@ def get_stop_stats(stop_data, stop_updates, recent_stops_rows, inclusion_time):
     stop_stats = {}
     
     count = 0
+    print(f"Sample stop time: {stop_time}")
     for row in recent_stops_rows:
-        count += 1
         stop_time = row.stop_time.replace(tzinfo=timezone.utc)
         if stop_time < inclusion_time:
             continue
@@ -115,8 +115,12 @@ def get_stop_stats(stop_data, stop_updates, recent_stops_rows, inclusion_time):
             stop_stats[row.stop_id].append(row.delay)
         except KeyError:
             stop_stats[row.stop_id] = [row.delay]
-    print("Including", count, "stop update records from database in statistics...")
+        count += 1
+    print(f"Sample adjusted stop time: {stop_time}")
+    print(f"Inclusion time: {inclusion_time}")
+    print(f"Including {count} stop update records from database in statistics...")
 
+    print(f"Generating {len(stop_data)} stop statistics...")
     for stop, delays in stop_data.items():
         stats = get_stats(delays)
         stop_stats[stop] = stats
@@ -129,6 +133,8 @@ def read_data(session, json_string, inclusion_time):
     stop_updates = set()
     results = []
     data = json.loads(json_string)
+    stop_count = 0
+    trip_count = 0
     current_route = None
     for trip_data_string in data:
         if current_route is not None:
@@ -149,6 +155,7 @@ def read_data(session, json_string, inclusion_time):
             routes[route_key].append(delay)
         except KeyError:
             routes[route_key] = [delay]
+        trip_count += 1
         
         for stop in stop_time_updates:
             info = get_stop_info(stop)
@@ -169,10 +176,13 @@ def read_data(session, json_string, inclusion_time):
             )
             results.append(session.execute_async(statement))
             stop_updates.add((stop_id, arrival, trip_id))
+            stop_count += 1
         if len(results) > 1000:
             block_for_results(results)
             results = []
-                    
+    
+    print(f"Read updates for {trip_count} trips on {len(routes)} routes.")
+    print(f"Read updates for {stop_count} stop events at {len(stops)} stops.")
     return routes, stops, stop_updates
 
 
@@ -192,6 +202,7 @@ def get_recent_stops(session, inclusion_time):
 
 def ingest_route_stats_by_route(session, route_stats, update_time):    
     results = []
+    print(f"Ingesting {len(route_stats)} records to route_stats_by_route")
     for route_key, stats in route_stats.items():
         statement = create_statement(
             f"""
@@ -224,6 +235,7 @@ def ingest_route_stats_by_route(session, route_stats, update_time):
 def ingest_route_stats_by_time(session, route_stats, route_results, update_time):
     results = []
     
+    print(f"Ingesting {len(route_stats)} records to route_stats_by_route")
     prepared_string = """
         INSERT INTO route_stat_by_time (
             route_id,
@@ -306,7 +318,7 @@ def lambda_handler(event, context):
         
         # Get route and stop updates from update file
         # Incidentally adds stop updates to the database
-        print("Getting recent stop updates from database...")
+        print("Reading trip updates from update file...")
         routes, stops, stop_updates = read_data(session, json_string, inclusion_time)
         
         # Interpret route and stop updates into statistics
@@ -320,12 +332,14 @@ def lambda_handler(event, context):
         route_detail_results = get_route_data(session, route_stats)
         
         # Ingest statistics
+        print("Beginning ingestion...")
         route_stats_by_route_results = ingest_route_stats_by_route(session, route_stats, upload_time)
         route_stats_by_time_results = ingest_route_stats_by_time(session, route_stats, route_detail_results, upload_time)
         
         print("Waiting for results to ingest...")
         block_for_results(route_stats_by_route_results)
         block_for_results(route_stats_by_time_results)
+        print("Ingestion complete!")
 
         return {
             'statusCode': 200,
