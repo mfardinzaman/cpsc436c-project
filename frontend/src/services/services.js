@@ -5,5 +5,10 @@ const getRoutes = async () => {
     return data
 }
 
-const service = { getRoutes }
+const getRouteStats = async () => {
+    const data = await fetchHelper('/route_stats', 'GET', {})
+    return data
+}
+
+const service = { getRoutes, getRouteStats }
 export default service
