@@ -159,7 +159,7 @@ def create_stop_update_table(session):
     )
     
 
-def create_position_update_table(session):
+def create_vehicle_by_route_table(session):
     session.execute(
         """
         CREATE TABLE IF NOT EXISTS vehicle_by_route(
@@ -168,13 +168,10 @@ def create_position_update_table(session):
             trip_id varchar,
             route_id varchar,
             direction_id int,
-            current_status varchar,
             stop_sequence int,
             stop_id varchar,
-            latitude float,
-            longitude float,
             delay int,
-            last_update timestamp,
+            expected_arrival timestamp,
             update_time timestamp,
             PRIMARY KEY ((route_id, direction_id), update_time, stop_sequence, vehicle_id)
         ) WITH CLUSTERING ORDER BY (update_time DESC)
@@ -317,7 +314,7 @@ def list_route_rows(session):
 
 if __name__ == "__main__":
     session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
-    create_position_update_table(session)
+    create_vehicle_by_route_table(session)
     # create_route_statistic_tables(session, test=False)
     # create_stop_statistic_tables(session, test=True)
     # create_stop_update_table(session)

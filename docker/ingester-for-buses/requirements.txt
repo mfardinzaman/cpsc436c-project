@@ -1,3 +1,0 @@
-cassandra-driver
-cassandra-sigv4
-boto3

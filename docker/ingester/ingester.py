@@ -48,12 +48,13 @@ def get_trip_info(trip_data):
     schedule_relationship = trip['scheduleRelationship']
     route_id = trip['routeId']
     direction_id = trip['directionId']
-    vehicle = trip_update['vehicle']['label']
+    vehicle_label = trip_update['vehicle']['label']
+    vehicle_id = trip_update['vehicle']['id']
     
     route_key = (route_id, direction_id)
     stop_time_updates = trip_update['stopTimeUpdate']
     
-    return route_key, stop_time_updates, trip_id, vehicle
+    return route_key, stop_time_updates, trip_id, vehicle_label, vehicle_id
 
 
 def get_stop_info(stop):
@@ -64,15 +65,20 @@ def get_stop_info(stop):
         arrival_time -= arrival_time.utcoffset()
         departure_delay = stop['departure']['delay']
         stop_id = stop['stopId']
-        return stop_id, arrival_delay, arrival_time
+        return stop_id, arrival_delay, arrival_time, stop_sequence
     except KeyError:
         return None
 
 
-def get_next_stop_info(stop_updates):
-    if len(stop_updates) == 0:
-        return None
-    return get_stop_info(stop_updates[0])
+def get_next_stop_info(stop_updates, update_time):
+    for stop_update in stop_updates:
+        info = get_stop_info(stop_update)
+        if info is None:
+            continue
+        arrival_time = info[2]
+        if arrival_time > update_time:
+            return info
+    return None
         
         
 def get_stats(delays):
@@ -106,6 +112,7 @@ def read_data(json_string, update_time):
     routes = {}
     stops = {}
     stop_params = []
+    vehicle_params = []
     
     data = json.loads(json_string)
     stop_count = 0
@@ -118,25 +125,37 @@ def read_data(json_string, update_time):
         
         trip_data = json.loads(trip_data_string)
         try:
-            route_key, stop_time_updates, trip_id, vehicle = get_trip_info(trip_data)
+            route_key, stop_time_updates, trip_id, vehicle_label, vehicle_id = get_trip_info(trip_data)
         except KeyError:
             continue
         
-        info = get_next_stop_info(stop_time_updates)
+        info = get_next_stop_info(stop_time_updates, update_time)
         if info is None:
             continue
-        _, delay, _ = info
+        stop_id, delay, arrival_time, stop_sequence = info
         try:
             routes[route_key].append(delay)
         except KeyError:
             routes[route_key] = [delay]
         trip_count += 1
+        vehicle_params.append((
+            vehicle_id,
+            vehicle_label,
+            trip_id,
+            route_key[0],
+            route_key[1],
+            stop_sequence,
+            stop_id,
+            delay,
+            arrival_time,
+            update_time
+        ))
         
         for stop in stop_time_updates:
             info = get_stop_info(stop)
             if info is None:
                 continue
-            stop_id, delay, arrival = info
+            stop_id, delay, arrival, _ = info
             try:
                 stops[stop_id].append(delay)
             except KeyError:
@@ -146,7 +165,7 @@ def read_data(json_string, update_time):
                 trip_id,
                 route_key[0],
                 route_key[1],
-                vehicle,
+                vehicle_label,
                 delay,
                 arrival,
                 update_time
@@ -154,7 +173,7 @@ def read_data(json_string, update_time):
             stop_count += 1
     print(f"Read updates for {trip_count} trips on {len(routes)} routes.")
     print(f"Read updates for {stop_count} stop events at {len(stops)} stops.")
-    return routes, stops, stop_params
+    return routes, stops, stop_params, vehicle_params
 
 
 def get_route_data(session, route_stats):
@@ -381,6 +400,31 @@ def ingest_stop_updates(session, stop_params):
             print("ERROR: ", result)
             
 
+def ingest_vehicle_by_route(session, vehicle_params):
+    print(f"Ingesting {len(vehicle_params)} records to vehicle_by_route")
+    insert_stat = session.prepare(
+        """
+        INSERT INTO vehicle_by_route(
+            vehicle_id, 
+            vehicle_label, 
+            trip_id, 
+            route_id, 
+            direction_id, 
+            stop_sequence, 
+            stop_id, 
+            delay,
+            expected_arrival, 
+            update_time
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+    )
+    results = execute_concurrent_with_args(session, insert_stat, vehicle_params, concurrency=50)
+    for (success, result) in results:
+        if not success:
+            print("ERROR: ", result)
+            
+
 def ingest_update_time(session, update_time):
     prepared = session.prepare(f"INSERT INTO update_time(day, update_time) VALUES (?, ?)")
     bound = prepared.bind((update_time.date(), update_time))
@@ -407,7 +451,7 @@ def lambda_handler(event, context):
         
         # Get route and stop updates from update file
         print("Reading trip updates from update file...")
-        routes, stops, stop_params = read_data(json_string, upload_time)
+        routes, stops, stop_params, vehicle_params = read_data(json_string, upload_time)
         
         # Interpret route and stop updates into statistics
         print("Generating statistics...")
@@ -424,6 +468,7 @@ def lambda_handler(event, context):
         print("Beginning ingestion...")
         ingest_route_stats_by_route(session, route_stats, upload_time)
         ingest_route_stats_by_time(session, route_stats, route_detail_results, upload_time)
+        ingest_vehicle_by_route(session, vehicle_params)
         ingest_stop_stats_by_stop(session, stop_stats, upload_time)
         ingest_stop_stats_by_time(session, stop_stats, stop_detail_results, upload_time)
         ingest_stop_updates(session, stop_params)
