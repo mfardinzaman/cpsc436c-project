@@ -379,6 +379,12 @@ def ingest_stop_updates(session, stop_params):
     for (success, result) in results:
         if not success:
             print("ERROR: ", result)
+            
+
+def ingest_update_time(session, update_time):
+    prepared = session.prepare(f"INSERT INTO update_time(day, update_time) VALUES (?, ?)")
+    bound = prepared.bind((update_time.date(), update_time))
+    session.execute(bound)
 
 
 def get_string_and_upload_time(event):
@@ -421,6 +427,7 @@ def lambda_handler(event, context):
         ingest_stop_stats_by_stop(session, stop_stats, upload_time)
         ingest_stop_stats_by_time(session, stop_stats, stop_detail_results, upload_time)
         ingest_stop_updates(session, stop_params)
+        ingest_update_time(session, upload_time)
         
         print("Ingestion complete!")
 

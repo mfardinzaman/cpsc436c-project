@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import urllib.parse
 import boto3
 from cassandra.cluster import Cluster, DCAwareRoundRobinPolicy
@@ -46,14 +46,60 @@ def get_string_and_upload_time(event):
     return json_string, upload_time
 
 
-def read_position_update(json_string, upload_time):
-    results = []
+def read_position_update(json_string):
+    results = {}
     data = json.loads(json_string)
     for update in data:
         update = json.loads(update)['vehicle']
+        results[(update['stopId'], update['trip']['tripId'])] = update
+    return results
+
+
+def retrieve_most_recent_update_time(session, update_time):
+    select_statement = session.prepare("SELECT * FROM update_time WHERE day = ? LIMIT 1")
+    today = update_time.date()
+    yesterday = (update_time - timedelta(days=1)).date()
+    params = ((today,), (yesterday,))
+    results = execute_concurrent_with_args(session, select_statement,  params)
+    
+    t = None
+    for (success, result) in results:
+        if not success:
+            print("ERROR: Failed to get latest update time:", result)
+        else:
+            row = result.one()
+            if t is None or row.day == today:
+                t = row.update_time
+    return t
+
+
+def retrieve_delays(session, updates, update_time):
+    delays = {}
+    t = update_time.isoformat(timespec="milliseconds")
+    select_statement = session.prepare(f"SELECT stop_id, trip_id, delay FROM stop_update WHERE stop_id = ? AND trip_id = ? AND update_time = '{t}'")
+    results = execute_concurrent_with_args(session, select_statement, updates.keys(), concurrency=50)
+    for (success, result) in results:
+        if not success:
+            print("ERROR: ", result)
+        else:
+            row = result.one()
+            if row is None:
+                continue
+            delays[(row.stop_id, row.trip_id)] = row.delay
+    return delays
+
+
+def generate_position_params(updates, delays, upload_time):
+    results = []
+    for key, update in updates.items():
+        try:
+            delay = delays[key]
+        except KeyError:
+            delay = None
         params = (
             update['vehicle']['id'],
             update['vehicle']['label'],
+            update['trip']['tripId'],
             update['trip']['routeId'],
             update['trip']['directionId'],
             update['currentStatus'],
@@ -61,6 +107,7 @@ def read_position_update(json_string, upload_time):
             update['stopId'],
             update['position']['latitude'],
             update['position']['longitude'],
+            delay,
             datetime.fromtimestamp(int(update['timestamp']), tz=timezone.utc),
             upload_time
         )
@@ -75,6 +122,7 @@ def ingest_position_update(session, position_params):
         INSERT INTO vehicle_by_route(
             vehicle_id,
             vehicle_label,
+            trip_id,
             route_id,
             direction_id,
             current_status,
@@ -82,10 +130,11 @@ def ingest_position_update(session, position_params):
             stop_id,
             latitude,
             longitude,
+            delay,
             last_update,
             update_time
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
     )
     results = execute_concurrent_with_args(session, insert_statement, position_params)
@@ -101,7 +150,16 @@ def lambda_handler(event, context):
         session = create_session()
         
         print("Reading position updates from update file...")
-        params = read_position_update(json_string, upload_time)
+        updates = read_position_update(json_string)
+        
+        print("Retrieving the most recent update time...")
+        update_time = retrieve_most_recent_update_time(session, upload_time)
+        
+        print(f"Retrieving {len(updates)} delay records from stop_updates at update_time {update_time.isoformat()}...")
+        delays = retrieve_delays(session, updates, update_time)
+        
+        print("Generating parameters for ingestion...")
+        params = generate_position_params(updates, delays, upload_time)
     
         print("Beginning ingestion...")
         ingest_position_update(session, params)

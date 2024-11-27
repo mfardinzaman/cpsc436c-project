@@ -165,6 +165,7 @@ def create_position_update_table(session):
         CREATE TABLE IF NOT EXISTS vehicle_by_route(
             vehicle_id varchar,
             vehicle_label varchar,
+            trip_id varchar,
             route_id varchar,
             direction_id int,
             current_status varchar,
@@ -172,9 +173,22 @@ def create_position_update_table(session):
             stop_id varchar,
             latitude float,
             longitude float,
+            delay int,
             last_update timestamp,
             update_time timestamp,
             PRIMARY KEY ((route_id, direction_id), update_time, stop_sequence, vehicle_id)
+        ) WITH CLUSTERING ORDER BY (update_time DESC)
+        """
+    )
+    
+
+def create_update_time_table(session):
+    session.execute(
+        """
+        CREATE TABLE IF NOT EXISTS update_time(
+            day date,
+            update_time timestamp,
+            PRIMARY KEY (day, update_time)
         ) WITH CLUSTERING ORDER BY (update_time DESC)
         """
     )

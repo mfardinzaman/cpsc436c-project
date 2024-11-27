@@ -28,6 +28,7 @@ def create_session(access_key_id, secret_access_key, session_token):
     cluster = Cluster(['cassandra.ca-central-1.amazonaws.com'], ssl_context=ssl_context, auth_provider=auth_provider,
                     port=9142)
     session = cluster.connect(keyspace='Translink')
+    session.default_consistency_level = ConsistencyLevel.LOCAL_QUORUM
     return session
 
 
@@ -410,15 +411,22 @@ def ingest_position_update(session, position_params):
     for (success, result) in results:
         if not success:
             print("ERROR: ", result)
+            
+            
+def ingest_update_time(session, update_time):
+    prepared = session.prepare(f"INSERT INTO update_time(day, update_time) VALUES (?, ?)")
+    bound = prepared.bind((update_time.date(), update_time))
+    session.execute(bound)
 
 
 if __name__ == '__main__':
     # session = None
-    # session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
+    session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
     # path = '../data/2024-11-26 16_00_55.716370.json'
     path = '../data/2024-11-27 05_00_24.553387.json'
     upload_time = datetime.fromisoformat('2024-11-26T16:00:55.716370').replace(tzinfo=timezone.utc)
-    read_position_update(path, upload_time)
+    ingest_update_time(session, upload_time)
+    # read_position_update(path, upload_time)
     
     # Get route and stop updates from update file
     # Incidentally adds stop updates to the database
