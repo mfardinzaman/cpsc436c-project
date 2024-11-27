@@ -53,7 +53,6 @@ const RouteDashboard = () => {
             label: "Average Lateness (min)",
             options: {
                 customBodyRender: (value, { rowIndex }) => {
-                    const rowObject = routes[rowIndex];
                     const minutes = Math.round(value / 60)
                     return <Typography>{`${minutes}`}</Typography>
                 },
