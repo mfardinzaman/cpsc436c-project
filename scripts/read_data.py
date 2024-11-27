@@ -1,7 +1,7 @@
 import json
 import statistics
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from cassandra.cluster import Cluster
 from ssl import SSLContext, PROTOCOL_TLSv1_2 , CERT_REQUIRED
 import boto3
@@ -9,6 +9,7 @@ from cassandra_sigv4.auth import SigV4AuthProvider
 from cassandra.query import BatchStatement, ConsistencyLevel, BatchType, SimpleStatement
 
 
+# Number of seconds deviance for a bus to be considered "very late" or "very early"
 HIGH_DELAY = 300
 
 
@@ -50,27 +51,25 @@ def get_trip_info(trip_data):
     route_key = (route_id, direction_id)
     stop_time_updates = trip_update['stopTimeUpdate']
     
-    return route_key, stop_time_updates
+    return route_key, stop_time_updates, trip_id, vehicle
 
 
 def get_stop_info(stop):
     try:
         stop_sequence = stop['stopSequence']
         arrival_delay = stop['arrival']['delay']
-        arrival_time = stop['arrival']['time']
+        arrival_time = datetime.fromtimestamp(int(stop['arrival']['time']), tz=timezone.utc)
         departure_delay = stop['departure']['delay']
         stop_id = stop['stopId']
-        return stop_id, arrival_delay
+        return stop_id, arrival_delay, arrival_time
     except KeyError:
         return None
 
 
-def get_most_recent_stop_info(stop_updates):
-    for stop in reversed(stop_updates):
-        info = get_stop_info(stop)
-        if info is not None:
-            return info
-    return None
+def get_next_stop_info(stop_updates):
+    if len(stop_updates) == 0:
+        return None
+    return get_stop_info(stop_updates[0])
         
         
 def get_stats(delays):
@@ -82,12 +81,29 @@ def get_stats(delays):
         'very_late': sum(delay >= HIGH_DELAY for delay in delays)
     }
     return stats
-        
 
 
-def read_data(path):        
+def get_route_stats(route_data):
+    route_stats = {}
+    for route_key, delays in route_data.items():
+        stats = get_stats(delays)
+        route_stats[route_key] = stats
+    return route_stats
+
+
+def get_stop_stats(stop_data):
+    stop_stats = {}
+    for stop, delays in stop_data.items():
+        stats = get_stats(delays)
+        stop_stats[stop] = stats
+    return stop_stats
+
+
+def read_data(session, path):        
     routes = {}
     stops = {}
+    stop_updates = set()
+    results = []
     with open(path, 'r') as f:
         data = json.load(f)
         current_route = None
@@ -98,50 +114,41 @@ def read_data(path):
             
             trip_data = json.loads(trip_data_string)
             try:
-                route_key, stop_time_updates = get_trip_info(trip_data)
+                route_key, stop_time_updates, trip_id, vehicle = get_trip_info(trip_data)
             except KeyError:
                 continue
             
-            info = get_most_recent_stop_info(stop_time_updates)
+            info = get_next_stop_info(stop_time_updates)
             if info is None:
                 continue
-            _, delay = info
+            _, delay, _ = info
             try:
                 routes[route_key].append(delay)
             except KeyError:
                 routes[route_key] = [delay]
             
-            # TODO: record stops in database and check if stops were already recorded to prevent duplicates
-            # Assemble delays for all stops within the last X minutes
             for stop in stop_time_updates:
                 info = get_stop_info(stop)
                 if info is None:
                     continue
-                stop_id, delay = info
+                stop_id, delay, arrival = info
                 try:
                     stops[stop_id].append(delay)
-                except:
+                except KeyError:
                     stops[stop_id] = [delay]
-                    
-    route_stats = {}
-    for route_key, delays in routes.items():
-        stats = get_stats(delays)
-        route_stats[route_key] = stats
-    stop_stats = {}
-    for stop_id, delays in stops.items():
-        stats = get_stats(delays)
-        stop_stats[stop_id] = stats
-    return route_stats, stop_stats
+                # statement = create_statement(
+                #     f"""
+                #     INSERT INTO stop_update_test(stop_id, trip_id, route_id, direction_id, vehicle_label, delay, stop_time)
+                #     VALUES ('{stop_id}', '{trip_id}', '{route_key[0]}', {route_key[1]}, '{vehicle}', {delay}, '{arrival.isoformat(timespec='milliseconds')}')
+                #     """
+                # )
+                # results.append(session.execute_async(statement))
+                stop_updates.add((stop_id, arrival, trip_id))
+            if len(results) > 1000:
+                block_for_results(results)
+                results = []
+    return routes, stops
 
-
-def get_recent_stop_updates(session):
-    # TODO: Query stop_updates table for recent stops
-    return
-
-
-def ingest_new_stop_updates(session, stop_updates):
-    # TODO: Insert stop_updates into its table
-    return
 
 
 def ingest_route_stats_by_route(session, route_stats, update_time):    
@@ -225,20 +232,104 @@ def ingest_route_stats_by_time(session, route_stats, route_results, update_time)
             update_time
         ))
         count += 1
-        
     results.append(session.execute_async(batch))
     return results
 
 
-def ingest_stop_stats_by_stop(session, stop_stats):
-    # TODO
+def ingest_stop_stats_by_stop(session, stop_stats, update_time):
+    results = []
+    print(f"Ingesting {len(stop_stats)} records to stop_stats_by_stop")
+    for stop_id, stats in stop_stats.items():
+        statement = create_statement(
+            f"""
+            INSERT INTO stop_stat_by_stop_test (
+                stop_id, 
+                average_delay, 
+                median_delay, 
+                very_early_count,
+                very_late_count,
+                stop_count,
+                update_time
+            )
+            VALUES (
+                '{stop_id}', 
+                {stats['mean']},
+                {stats['median']},
+                {stats['very_early']},
+                {stats['very_late']},
+                {stats['count']},
+                '{update_time.isoformat(timespec='milliseconds')}'
+            )
+            """
+        )
+        results.append(session.execute_async(statement))
+        if len(results) > 50:
+            block_for_results(results)
+            results = []
+    block_for_results(results)
 
-    return
 
-def ingest_stop_stats_by_time(session, stop_stats):
-    # TODO
-
-    return
+def ingest_stop_stats_by_time(session, stop_stats, stop_results, update_time):
+    results = []
+    
+    print(f"Ingesting {len(stop_stats)} records to stop_stats_by_time")
+    insert_stat = session.prepare(
+        """
+        INSERT INTO stop_stat_by_time_test (
+            stop_id, 
+            stop_code,
+            stop_name,
+            latitude,
+            longitude,
+            zone_id,
+            location_type,
+            wheelchair_boarding,
+            average_delay, 
+            median_delay, 
+            very_early_count,
+            very_late_count,
+            stop_count,
+            day,
+            update_time
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+    )
+    
+    batch = create_batch()
+    count = 0
+    for stop_id, stats, in stop_stats.items():
+        if count == 30:
+            session.execute(batch)
+            batch = create_batch()
+            count = 0
+        all_stop_details = stop_results[stop_id].result().all()
+        if (len(all_stop_details) == 0):
+            continue
+        stop_details = all_stop_details[0]
+        batch.add(insert_stat, (
+            stop_id,
+            stop_details.stop_code,
+            stop_details.stop_name,
+            stop_details.latitude,
+            stop_details.longitude,
+            stop_details.zone_id,
+            stop_details.location_type,
+            stop_details.wheelchair_boarding,
+            stats['mean'],
+            stats['median'],
+            stats['very_early'],
+            stats['very_late'],
+            stats['count'],
+            update_time.date(),
+            update_time
+        ))
+        count += 1
+        if len(results) > 10:
+            block_for_results(results)
+            results = []
+    results.append(session.execute_async(batch))
+    block_for_results(results)
 
 
 def get_route_data(session, route_stats):
@@ -246,6 +337,13 @@ def get_route_data(session, route_stats):
     for route_id, direction_id in route_stats.keys():
         query = create_statement(f"SELECT * FROM route WHERE route_id = '{route_id}' AND direction_id = {direction_id};")
         results[(route_id, direction_id)] = session.execute_async(query)
+    return results
+
+def get_stop_data(session, stop_stats):
+    results = {}
+    for stop_id in stop_stats.keys():
+        query = create_statement(f"SELECT * FROM stop WHERE stop_id = '{stop_id}';")
+        results[stop_id] = session.execute_async(query)
     return results
 
 
@@ -266,14 +364,33 @@ def delete_test_records(session, table):
 
 
 if __name__ == '__main__':
+    # session = None
     session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
-    path = '../data/2024-11-21 18_41_40.734247.json'
-    route_stats, stop_stats = read_data(path)
+    path = '../data/2024-11-26 16_00_55.716370.json'
+    upload_time = datetime.fromisoformat('2024-11-26T16:00:55.716370').replace(tzinfo=timezone.utc)
     
-    route_results = get_route_data(session, route_stats)
-    route_stats_by_time_results = ingest_route_stats_by_time(session, route_stats, route_results, datetime.now())
+    # Get route and stop updates from update file
+    # Incidentally adds stop updates to the database
+    routes, stops = read_data(session, path)
     
-    # results = ingest_route_stats_by_route(session, route_stats, datetime.now())
-    # block_for_results(results)
+    # Interpret route and stop updates into statistics
+    print("Generating statistics...")
+    route_stats = get_route_stats(routes)
+    stop_stats = get_stop_stats(stops)
     
-    block_for_results(route_stats_by_time_results)
+    # Get route details for routes with statistics
+    # print("Getting details for routes...")
+    # route_detail_results = get_route_data(session, route_stats)
+    stop_detail_results = get_stop_data(session, stop_stats)
+    
+    # Ingest statistics
+    # print("Beginning ingestion...")
+    # route_stats_by_route_results = ingest_route_stats_by_route(session, route_stats, upload_time)
+    # route_stats_by_time_results = ingest_route_stats_by_time(session, route_stats, route_detail_results, upload_time)
+    ingest_stop_stats_by_stop(session, stop_stats, upload_time)
+    ingest_stop_stats_by_time(session, stop_stats, stop_detail_results, upload_time)
+    
+    # print("Waiting for results to ingest...")
+    # block_for_results(route_stats_by_route_results)
+    # block_for_results(route_stats_by_time_results)
+    # print("Ingestion complete!")
