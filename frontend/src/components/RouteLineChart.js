@@ -21,10 +21,9 @@ const RouteLineChart = ({ routeId, directionId }) => {
 
             if (result.statusCode === 200) {
                 setDelayData(result.body.map((data) => ({
-                    update_time: moment(data.update_time).valueOf(),
+                    update_time: moment.utc(data.update_time).valueOf(),
                     average_delay: data.average_delay
                 })))
-                // setDelayData(result.body);
             } else {
                 console.log('Error fetching route stats over time:', result);
             }
@@ -44,10 +43,6 @@ const RouteLineChart = ({ routeId, directionId }) => {
     useEffect(() => {
         getDelayData();
     }, []);
-
-    useEffect(() => {
-        console.log(delayData)
-    }, [delayData])
 
 
     return (
