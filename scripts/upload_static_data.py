@@ -174,7 +174,7 @@ def create_position_update_table(session):
             longitude float,
             last_update timestamp,
             update_time timestamp,
-            PRIMARY KEY ((route_id, direction_id), update_time, vehicle_id)
+            PRIMARY KEY ((route_id, direction_id), update_time, stop_sequence, vehicle_id)
         ) WITH CLUSTERING ORDER BY (update_time DESC)
         """
     )
@@ -303,16 +303,16 @@ def list_route_rows(session):
 
 if __name__ == "__main__":
     session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
-    # create_position_update_table(session)
+    create_position_update_table(session)
     # create_route_statistic_tables(session, test=False)
     # create_stop_statistic_tables(session, test=True)
-    create_stop_update_table(session)
+    # create_stop_update_table(session)
     # create_route_table(session)
     # create_stop_table(session)
     # populate_route_table(session)
     # populate_stop_table(session)
     # drop_table(session, 'stop_stat_by_stop')
     # drop_table(session, 'stop_stat_by_stop_test')
-    # drop_table(session, 'stop_update')
+    # drop_table(session, 'vehicle_by_route')
     # list_tables(session)
     # list_route_rows(session)
