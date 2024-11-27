@@ -56,6 +56,7 @@ const StopsDashboard = () => {
         print: false,
         download: false,
         filter: false,
+        responsive: 'standard'
     };
 
     return (

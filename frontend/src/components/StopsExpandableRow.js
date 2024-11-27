@@ -38,6 +38,7 @@ const StopsExpandableRow = ({ rowData, rowMeta, stops }) => {
                         print: false,
                         download: false,
                         filter: false,
+                        responsive: 'standard'
                     }}
                 />
             </TableCell>
