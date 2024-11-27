@@ -113,6 +113,7 @@ def read_data(json_string, update_time):
     stops = {}
     stop_params = []
     vehicle_params = []
+    all_routes = []
     
     data = json.loads(json_string)
     stop_count = 0
@@ -137,6 +138,7 @@ def read_data(json_string, update_time):
             routes[route_key].append(delay)
         except KeyError:
             routes[route_key] = [delay]
+        all_routes.append(delay)
         trip_count += 1
         vehicle_params.append((
             vehicle_id,
@@ -171,6 +173,7 @@ def read_data(json_string, update_time):
                 update_time
             ))
             stop_count += 1
+    routes[('ALL', -1)] = all_routes
     print(f"Read updates for {trip_count} trips on {len(routes)} routes.")
     print(f"Read updates for {stop_count} stop events at {len(stops)} stops.")
     return routes, stops, stop_params, vehicle_params
