@@ -102,7 +102,7 @@ def get_stop_stats(stop_data):
     return stop_stats
 
 
-def read_data(json_string):        
+def read_data(json_string, update_time):        
     routes = {}
     stops = {}
     stop_params = []
@@ -148,7 +148,8 @@ def read_data(json_string):
                 route_key[1],
                 vehicle,
                 delay,
-                arrival
+                arrival,
+                update_time
             ))
             stop_count += 1
     print(f"Read updates for {trip_count} trips on {len(routes)} routes.")
@@ -268,7 +269,7 @@ def ingest_route_stats_by_time(session, route_stats, route_results, update_time)
         )
         statements_and_params.append((insert_stat, params))
         
-    results = execute_concurrent(session, statements_and_params, raise_on_first_error=False)
+    results = execute_concurrent(session, statements_and_params, raise_on_first_error=False, concurrency=50)
     for (success, result) in results:
         if not success:
             print("ERROR:", result)
@@ -360,7 +361,7 @@ def ingest_stop_stats_by_time(session, stop_stats, stop_results, update_time):
         )
         statements_and_params.append((insert_stat, params))
     
-    results = execute_concurrent(session, statements_and_params, raise_on_first_error=False)
+    results = execute_concurrent(session, statements_and_params, raise_on_first_error=False, concurrency=50)
     for (success, result) in results:
         if not success:
             print("ERROR:", result)
@@ -370,11 +371,11 @@ def ingest_stop_updates(session, stop_params):
     print(f"Ingesting {len(stop_params)} records to stop_update")
     insert_stat = session.prepare(
         """
-        INSERT INTO stop_update(stop_id, trip_id, route_id, direction_id, vehicle_label, delay, stop_time)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO stop_update(stop_id, trip_id, route_id, direction_id, vehicle_label, delay, stop_time, update_time)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """
     )
-    results = execute_concurrent_with_args(session, insert_stat, stop_params)
+    results = execute_concurrent_with_args(session, insert_stat, stop_params, concurrency=50)
     for (success, result) in results:
         if not success:
             print("ERROR: ", result)
@@ -400,7 +401,7 @@ def lambda_handler(event, context):
         
         # Get route and stop updates from update file
         print("Reading trip updates from update file...")
-        routes, stops, stop_params = read_data(json_string)
+        routes, stops, stop_params = read_data(json_string, upload_time)
         
         # Interpret route and stop updates into statistics
         print("Generating statistics...")
@@ -419,7 +420,7 @@ def lambda_handler(event, context):
         ingest_route_stats_by_time(session, route_stats, route_detail_results, upload_time)
         ingest_stop_stats_by_stop(session, stop_stats, upload_time)
         ingest_stop_stats_by_time(session, stop_stats, stop_detail_results, upload_time)
-        # ingest_stop_updates(session, stop_params)
+        ingest_stop_updates(session, stop_params)
         
         print("Ingestion complete!")
 

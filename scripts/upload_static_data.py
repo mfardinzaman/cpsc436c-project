@@ -152,8 +152,30 @@ def create_stop_update_table(session):
             vehicle_label varchar,
             delay int,
             stop_time timestamp,
-            PRIMARY KEY (stop_id, stop_time, trip_id)
-        ) WITH CLUSTERING ORDER BY (stop_time DESC);
+            update_time timestamp,
+            PRIMARY KEY (stop_id, update_time, trip_id)
+        ) WITH CLUSTERING ORDER BY (update_time DESC);
+        """
+    )
+    
+
+def create_position_update_table(session):
+    session.execute(
+        """
+        CREATE TABLE IF NOT EXISTS vehicle_by_route(
+            vehicle_id varchar,
+            vehicle_label varchar,
+            route_id varchar,
+            direction_id int,
+            current_status varchar,
+            stop_sequence int,
+            stop_id varchar,
+            latitude float,
+            longitude float,
+            last_update timestamp,
+            update_time timestamp,
+            PRIMARY KEY ((route_id, direction_id), update_time, vehicle_id)
+        ) WITH CLUSTERING ORDER BY (update_time DESC)
         """
     )
     
@@ -281,14 +303,16 @@ def list_route_rows(session):
 
 if __name__ == "__main__":
     session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
+    # create_position_update_table(session)
     # create_route_statistic_tables(session, test=False)
-    create_stop_statistic_tables(session, test=True)
-    # create_stop_update_table(session)
+    # create_stop_statistic_tables(session, test=True)
+    create_stop_update_table(session)
     # create_route_table(session)
     # create_stop_table(session)
     # populate_route_table(session)
     # populate_stop_table(session)
     # drop_table(session, 'stop_stat_by_stop')
     # drop_table(session, 'stop_stat_by_stop_test')
+    # drop_table(session, 'stop_update')
     # list_tables(session)
     # list_route_rows(session)
