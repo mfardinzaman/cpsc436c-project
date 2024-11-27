@@ -3,11 +3,13 @@ import MUIDataTable from "mui-datatables";
 import { TableRow, TableCell } from "@mui/material";
 
 import mockBuses from "../mock/mockVehicles.json";
+import RouteLineChart from "./RouteLineChart";
 
 const RouteExpandableRow = ({ rowData, rowMeta, routes }) => {
     const [buses, setBuses] = useState(mockBuses)
     const colSpan = rowData.length + 1;
-
+    const routeData = routes[rowMeta.rowIndex]
+    
     return (
         <TableRow
             sx={{
@@ -41,6 +43,7 @@ const RouteExpandableRow = ({ rowData, rowMeta, routes }) => {
                         responsive: 'standard'
                     }}
                 />
+                <RouteLineChart routeId={routeData['route_id']} directionId={routeData['direction_id']}/>
             </TableCell>
         </TableRow>
     );

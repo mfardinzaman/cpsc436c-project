@@ -5,6 +5,7 @@ import { Typography, Box, CircularProgress } from "@mui/material";
 import RouteExpandableRow from "./RouteExpandableRow";
 import service from '../services/services';
 
+
 const RouteDashboard = () => {
     const [routes, setRoutes] = useState(mockRoutes);
     const [loading, setLoading] = useState(false);
@@ -52,7 +53,6 @@ const RouteDashboard = () => {
             label: "Average Lateness (min)",
             options: {
                 customBodyRender: (value, { rowIndex }) => {
-                    const rowObject = routes[rowIndex];
                     const minutes = Math.round(value / 60)
                     return <Typography>{`${minutes}`}</Typography>
                 },
