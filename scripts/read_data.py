@@ -7,6 +7,7 @@ from ssl import SSLContext, PROTOCOL_TLSv1_2 , CERT_REQUIRED
 import boto3
 from cassandra_sigv4.auth import SigV4AuthProvider
 from cassandra.query import BatchStatement, ConsistencyLevel, BatchType, SimpleStatement
+from cassandra.concurrent import execute_concurrent, execute_concurrent_with_args 
 
 
 # Number of seconds deviance for a bus to be considered "very late" or "very early"
@@ -27,6 +28,7 @@ def create_session(access_key_id, secret_access_key, session_token):
     cluster = Cluster(['cassandra.ca-central-1.amazonaws.com'], ssl_context=ssl_context, auth_provider=auth_provider,
                     port=9142)
     session = cluster.connect(keyspace='Translink')
+    session.default_consistency_level = ConsistencyLevel.LOCAL_QUORUM
     return session
 
 
@@ -360,35 +362,92 @@ def delete_test_records(session, table):
         statement = SimpleStatement(f"DELETE FROM {table} WHERE route_id = '{result[0]}' AND direction_id = {result[1]} AND update_time < '2020-01-01';",
                                     consistency_level=ConsistencyLevel.LOCAL_QUORUM)
         session.execute(statement)
-    
+        
+        
+def read_position_update(path, upload_time):
+    results = []
+    with open(path, 'r') as f:
+        data = json.load(f)
+        for update in data:
+            update = json.loads(update)['vehicle']
+            params = (
+                update['vehicle']['id'],
+                update['vehicle']['label'],
+                update['trip']['routeId'],
+                update['trip']['directionId'],
+                update['currentStatus'],
+                update['currentStopSequence'],
+                update['stopId'],
+                update['position']['latitude'],
+                update['position']['longitude'],
+                datetime.fromtimestamp(int(update['timestamp']), tz=timezone.utc),
+                upload_time
+            )
+            results.append(params)
+    return results
+
+
+def ingest_position_update(session, position_params):
+    print(f"Ingesting {len(position_params)} records to vehicle_by_route")
+    insert_statement = session.prepare(
+        """
+        INSERT INTO vehicle_by_route(
+            vehicle_id,
+            vehicle_label,
+            route_id,
+            direction_id,
+            current_status,
+            stop_sequence,
+            stop_id,
+            latitude,
+            longitude,
+            last_update,
+            update_time
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+    )
+    results = execute_concurrent_with_args(session, insert_statement, position_params)
+    for (success, result) in results:
+        if not success:
+            print("ERROR: ", result)
+            
+            
+def ingest_update_time(session, update_time):
+    prepared = session.prepare(f"INSERT INTO update_time(day, update_time) VALUES (?, ?)")
+    bound = prepared.bind((update_time.date(), update_time))
+    session.execute(bound)
 
 
 if __name__ == '__main__':
     # session = None
     session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
-    path = '../data/2024-11-26 16_00_55.716370.json'
+    # path = '../data/2024-11-26 16_00_55.716370.json'
+    path = '../data/2024-11-27 05_00_24.553387.json'
     upload_time = datetime.fromisoformat('2024-11-26T16:00:55.716370').replace(tzinfo=timezone.utc)
+    ingest_update_time(session, upload_time)
+    # read_position_update(path, upload_time)
     
     # Get route and stop updates from update file
     # Incidentally adds stop updates to the database
-    routes, stops = read_data(session, path)
+    # routes, stops = read_data(session, path)
     
     # Interpret route and stop updates into statistics
-    print("Generating statistics...")
-    route_stats = get_route_stats(routes)
-    stop_stats = get_stop_stats(stops)
+    # print("Generating statistics...")
+    # route_stats = get_route_stats(routes)
+    # stop_stats = get_stop_stats(stops)
     
     # Get route details for routes with statistics
     # print("Getting details for routes...")
     # route_detail_results = get_route_data(session, route_stats)
-    stop_detail_results = get_stop_data(session, stop_stats)
+    # stop_detail_results = get_stop_data(session, stop_stats)
     
     # Ingest statistics
     # print("Beginning ingestion...")
     # route_stats_by_route_results = ingest_route_stats_by_route(session, route_stats, upload_time)
     # route_stats_by_time_results = ingest_route_stats_by_time(session, route_stats, route_detail_results, upload_time)
-    ingest_stop_stats_by_stop(session, stop_stats, upload_time)
-    ingest_stop_stats_by_time(session, stop_stats, stop_detail_results, upload_time)
+    # ingest_stop_stats_by_stop(session, stop_stats, upload_time)
+    # ingest_stop_stats_by_time(session, stop_stats, stop_detail_results, upload_time)
     
     # print("Waiting for results to ingest...")
     # block_for_results(route_stats_by_route_results)

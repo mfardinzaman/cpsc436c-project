@@ -7,6 +7,7 @@ from cassandra.cluster import Cluster, DCAwareRoundRobinPolicy
 from ssl import SSLContext, PROTOCOL_TLSv1_2 , CERT_REQUIRED
 from cassandra_sigv4.auth import SigV4AuthProvider
 from cassandra.query import SimpleStatement, BatchStatement, ConsistencyLevel, BatchType
+from cassandra.concurrent import execute_concurrent, execute_concurrent_with_args 
 
 
 # Number of seconds deviance for a bus to be considered "very late" or "very early"
@@ -29,11 +30,9 @@ def create_session():
         protocol_version=4
     )
     session = cluster.connect(keyspace='Translink')
+    session.default_timeout = 60
+    session.default_consistency_level = ConsistencyLevel.LOCAL_QUORUM
     return session
-
-
-def create_batch():
-    return BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=ConsistencyLevel.LOCAL_QUORUM)
 
 
 def create_statement(query):
@@ -49,12 +48,13 @@ def get_trip_info(trip_data):
     schedule_relationship = trip['scheduleRelationship']
     route_id = trip['routeId']
     direction_id = trip['directionId']
-    vehicle = trip_update['vehicle']['label']
+    vehicle_label = trip_update['vehicle']['label']
+    vehicle_id = trip_update['vehicle']['id']
     
     route_key = (route_id, direction_id)
     stop_time_updates = trip_update['stopTimeUpdate']
     
-    return route_key, stop_time_updates, trip_id, vehicle
+    return route_key, stop_time_updates, trip_id, vehicle_label, vehicle_id
 
 
 def get_stop_info(stop):
@@ -65,15 +65,20 @@ def get_stop_info(stop):
         arrival_time -= arrival_time.utcoffset()
         departure_delay = stop['departure']['delay']
         stop_id = stop['stopId']
-        return stop_id, arrival_delay, arrival_time
+        return stop_id, arrival_delay, arrival_time, stop_sequence
     except KeyError:
         return None
 
 
-def get_next_stop_info(stop_updates):
-    if len(stop_updates) == 0:
-        return None
-    return get_stop_info(stop_updates[0])
+def get_next_stop_info(stop_updates, update_time):
+    for stop_update in stop_updates:
+        info = get_stop_info(stop_update)
+        if info is None:
+            continue
+        arrival_time = info[2]
+        if arrival_time > update_time:
+            return info
+    return None
         
         
 def get_stats(delays):
@@ -103,11 +108,12 @@ def get_stop_stats(stop_data):
     return stop_stats
 
 
-def read_data(session, json_string):        
+def read_data(json_string, update_time):        
     routes = {}
     stops = {}
-    stop_updates = set()
-    results = []
+    stop_params = []
+    vehicle_params = []
+    
     data = json.loads(json_string)
     stop_count = 0
     trip_count = 0
@@ -119,99 +125,129 @@ def read_data(session, json_string):
         
         trip_data = json.loads(trip_data_string)
         try:
-            route_key, stop_time_updates, trip_id, vehicle = get_trip_info(trip_data)
+            route_key, stop_time_updates, trip_id, vehicle_label, vehicle_id = get_trip_info(trip_data)
         except KeyError:
             continue
         
-        info = get_next_stop_info(stop_time_updates)
+        info = get_next_stop_info(stop_time_updates, update_time)
         if info is None:
             continue
-        _, delay, _ = info
+        stop_id, delay, arrival_time, stop_sequence = info
         try:
             routes[route_key].append(delay)
         except KeyError:
             routes[route_key] = [delay]
         trip_count += 1
+        vehicle_params.append((
+            vehicle_id,
+            vehicle_label,
+            trip_id,
+            route_key[0],
+            route_key[1],
+            stop_sequence,
+            stop_id,
+            delay,
+            arrival_time,
+            update_time
+        ))
         
         for stop in stop_time_updates:
             info = get_stop_info(stop)
             if info is None:
                 continue
-            stop_id, delay, arrival = info
+            stop_id, delay, arrival, _ = info
             try:
                 stops[stop_id].append(delay)
             except KeyError:
                 stops[stop_id] = [delay]
-            statement = create_statement(
-                f"""
-                INSERT INTO stop_update(stop_id, trip_id, route_id, direction_id, vehicle_label, delay, stop_time)
-                VALUES ('{stop_id}', '{trip_id}', '{route_key[0]}', {route_key[1]}, '{vehicle}', {delay}, '{arrival.isoformat(timespec='milliseconds')}')
-                """
-            )
-            results.append(session.execute_async(statement))
+            stop_params.append((
+                stop_id,
+                trip_id,
+                route_key[0],
+                route_key[1],
+                vehicle_label,
+                delay,
+                arrival,
+                update_time
+            ))
             stop_count += 1
-        if len(results) > 1000:
-            block_for_results(results)
-            results = []
-    block_for_results(results)
     print(f"Read updates for {trip_count} trips on {len(routes)} routes.")
     print(f"Read updates for {stop_count} stop events at {len(stops)} stops.")
-    return routes, stops
+    return routes, stops, stop_params, vehicle_params
 
 
 def get_route_data(session, route_stats):
-    results = {}
-    for route_id, direction_id in route_stats.keys():
-        query = create_statement(f"SELECT * FROM route WHERE route_id = '{route_id}' AND direction_id = {direction_id};")
-        results[(route_id, direction_id)] = session.execute_async(query)
-    return results
+    select_statement = session.prepare("SELECT * FROM route WHERE route_id = ? AND direction_id = ?")
+    results = execute_concurrent_with_args(session, select_statement, [route_key for route_key in route_stats.keys()])
+    
+    route_data = {}
+    for (success, result) in results:
+        if not success:
+            print("ERROR:", result)
+        else:
+            result = result.all()
+            if len(result) > 0:
+                row = result[0]
+                route_data[(row.route_id, row.direction_id)] = row
+    return route_data
 
 
 def get_stop_data(session, stop_stats):
-    results = {}
-    for stop_id in stop_stats.keys():
-        query = create_statement(f"SELECT * FROM stop WHERE stop_id = '{stop_id}';")
-        results[stop_id] = session.execute_async(query)
-    return results
+    select_statement = session.prepare("SELECT * FROM stop WHERE stop_id = ?")
+    results = execute_concurrent_with_args(session, select_statement, [(stop_id,) for stop_id in stop_stats.keys()])
+    stop_data = {}
+    for (success, result) in results:
+        if not success:
+            print("ERROR:", result)
+        else:
+            result = result.all()
+            if len(result) > 0:
+                row = result[0]
+                stop_data[row.stop_id] = row
+    return stop_data
 
 
 def ingest_route_stats_by_route(session, route_stats, update_time):    
-    results = []
-    print(f"Ingesting {len(route_stats)} records to route_stats_by_route")
-    for route_key, stats in route_stats.items():
-        statement = create_statement(
-            f"""
-            INSERT INTO route_stat_by_route(
-                route_id, 
-                direction_id,
-                average_delay, 
-                median_delay, 
-                very_early_count,
-                very_late_count,
-                vehicle_count,
-                update_time
-            )
-            VALUES (
-                '{route_key[0]}', 
-                {route_key[1]}, 
-                {stats['mean']},
-                {stats['median']},
-                {stats['very_early']},
-                {stats['very_late']},
-                {stats['count']},
-                '{update_time.isoformat(timespec='milliseconds')}'
-            )
-            """
+    print(f"Ingesting {len(route_stats)} records to route_stat_by_route")
+    insert_stat = session.prepare(
+        """
+        INSERT INTO route_stat_by_route(
+            route_id, 
+            direction_id,
+            average_delay, 
+            median_delay, 
+            very_early_count,
+            very_late_count,
+            vehicle_count,
+            update_time
         )
-        results.append(session.execute_async(statement))
-    block_for_results(results)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """
+    )
+    statements_and_params = []
+    for route_key, stats in route_stats.items():
+        params = (
+            route_key[0], 
+            route_key[1],
+            stats['mean'],
+            stats['median'],
+            stats['very_early'],
+            stats['very_late'],
+            stats['count'],
+            update_time
+        )
+        statements_and_params.append((insert_stat, params))
+    
+    results = execute_concurrent(session, statements_and_params, raise_on_first_error=False)
+    for (success, result) in results:
+        if not success:
+            print("ERROR:", result)
 
 
 def ingest_route_stats_by_time(session, route_stats, route_results, update_time):
-    results = []
-    
-    print(f"Ingesting {len(route_stats)} records to route_stats_by_time")
-    prepared_string = """
+    print(f"Ingesting {len(route_stats)} records to route_stat_by_time")
+    insert_stat = session.prepare(
+        """
         INSERT INTO route_stat_by_time (
             route_id,
             route_short_name, 
@@ -230,18 +266,11 @@ def ingest_route_stats_by_time(session, route_stats, route_results, update_time)
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
-    insert_stat = session.prepare(prepared_string)
-    
-    batch = create_batch()
-    count = 0
+    )
+    statements_and_params = []
     for route_key, stats, in route_stats.items():
-        if count == 30:
-            results.append(session.execute_async(batch))
-            insert_stat = session.prepare(prepared_string)
-            batch = create_batch()
-            count = 0
-        route_details = route_results[route_key].result()[0]
-        batch.add(insert_stat, (
+        route_details = route_results[route_key]
+        params = (
             route_key[0],
             route_details.route_short_name,
             route_details.route_long_name,
@@ -256,50 +285,53 @@ def ingest_route_stats_by_time(session, route_stats, route_results, update_time)
             stats['count'],
             update_time.date(),
             update_time
-        ))
-        count += 1
-    results.append(session.execute_async(batch))
-    block_for_results(results)
+        )
+        statements_and_params.append((insert_stat, params))
+        
+    results = execute_concurrent(session, statements_and_params, raise_on_first_error=False, concurrency=50)
+    for (success, result) in results:
+        if not success:
+            print("ERROR:", result)
 
 
 
 def ingest_stop_stats_by_stop(session, stop_stats, update_time):
-    results = []
-    print(f"Ingesting {len(stop_stats)} records to stop_stats_by_stop")
-    for stop_id, stats in stop_stats.items():
-        statement = create_statement(
-            f"""
-            INSERT INTO stop_stat_by_stop (
-                stop_id, 
-                average_delay, 
-                median_delay, 
-                very_early_count,
-                very_late_count,
-                stop_count,
-                update_time
-            )
-            VALUES (
-                '{stop_id}', 
-                {stats['mean']},
-                {stats['median']},
-                {stats['very_early']},
-                {stats['very_late']},
-                {stats['count']},
-                '{update_time.isoformat(timespec='milliseconds')}'
-            )
-            """
+    print(f"Ingesting {len(stop_stats)} records to stop_stat_by_stop")
+    insert_stat = session.prepare(
+        """
+        INSERT INTO stop_stat_by_stop (
+            stop_id, 
+            average_delay, 
+            median_delay, 
+            very_early_count,
+            very_late_count,
+            stop_count,
+            update_time
         )
-        results.append(session.execute_async(statement))
-        if len(results) > 50:
-            block_for_results(results)
-            results = []
-    block_for_results(results)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+    )
+    statements_and_params = []
+    for stop_id, stats in stop_stats.items():
+        params = (
+            stop_id,
+            stats['mean'],
+            stats['median'],
+            stats['very_early'],
+            stats['very_late'],
+            stats['count'],
+            update_time
+        )
+        statements_and_params.append((insert_stat, params))
+    
+    results = execute_concurrent(session, statements_and_params, raise_on_first_error=False)
+    for (success, result) in results:
+        if not success:
+            print("ERROR:", result)
 
 
 def ingest_stop_stats_by_time(session, stop_stats, stop_results, update_time):
-    results = []
-    
-    print(f"Ingesting {len(stop_stats)} records to stop_stats_by_time")
+    print(f"Ingesting {len(stop_stats)} records to stop_stat_by_time")
     insert_stat = session.prepare(
         """
         INSERT INTO stop_stat_by_time(
@@ -323,18 +355,13 @@ def ingest_stop_stats_by_time(session, stop_stats, stop_results, update_time):
         """
     )
     
-    batch = create_batch()
-    count = 0
-    for stop_id, stats, in stop_stats.items():
-        if count == 30:
-            session.execute(batch)
-            batch = create_batch()
-            count = 0
-        all_stop_details = stop_results[stop_id].result().all()
-        if (len(all_stop_details) == 0):
+    statements_and_params = []
+    for stop_id, stats in stop_stats.items():
+        try:
+            stop_details = stop_results[stop_id]
+        except KeyError:
             continue
-        stop_details = all_stop_details[0]
-        batch.add(insert_stat, (
+        params = (
             stop_id,
             stop_details.stop_code,
             stop_details.stop_name,
@@ -350,13 +377,58 @@ def ingest_stop_stats_by_time(session, stop_stats, stop_results, update_time):
             stats['count'],
             update_time.date(),
             update_time
-        ))
-        count += 1
-        if len(results) > 10:
-            block_for_results(results)
-            results = []
-    results.append(session.execute_async(batch))
-    block_for_results(results)
+        )
+        statements_and_params.append((insert_stat, params))
+    
+    results = execute_concurrent(session, statements_and_params, raise_on_first_error=False, concurrency=50)
+    for (success, result) in results:
+        if not success:
+            print("ERROR:", result)
+            
+
+def ingest_stop_updates(session, stop_params):
+    print(f"Ingesting {len(stop_params)} records to stop_update")
+    insert_stat = session.prepare(
+        """
+        INSERT INTO stop_update(stop_id, trip_id, route_id, direction_id, vehicle_label, delay, stop_time, update_time)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """
+    )
+    results = execute_concurrent_with_args(session, insert_stat, stop_params, concurrency=50)
+    for (success, result) in results:
+        if not success:
+            print("ERROR: ", result)
+            
+
+def ingest_vehicle_by_route(session, vehicle_params):
+    print(f"Ingesting {len(vehicle_params)} records to vehicle_by_route")
+    insert_stat = session.prepare(
+        """
+        INSERT INTO vehicle_by_route(
+            vehicle_id, 
+            vehicle_label, 
+            trip_id, 
+            route_id, 
+            direction_id, 
+            stop_sequence, 
+            stop_id, 
+            delay,
+            expected_arrival, 
+            update_time
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+    )
+    results = execute_concurrent_with_args(session, insert_stat, vehicle_params, concurrency=50)
+    for (success, result) in results:
+        if not success:
+            print("ERROR: ", result)
+            
+
+def ingest_update_time(session, update_time):
+    prepared = session.prepare(f"INSERT INTO update_time(day, update_time) VALUES (?, ?)")
+    bound = prepared.bind((update_time.date(), update_time))
+    session.execute(bound)
 
 
 def get_string_and_upload_time(event):
@@ -371,11 +443,6 @@ def get_string_and_upload_time(event):
     return json_string, upload_time
 
 
-def block_for_results(results):
-    for result in results:
-        result.result()
-
-
 def lambda_handler(event, context):
     try:
         json_string, upload_time = get_string_and_upload_time(event)
@@ -383,9 +450,8 @@ def lambda_handler(event, context):
         session = create_session()
         
         # Get route and stop updates from update file
-        # Incidentally adds stop updates to the database
         print("Reading trip updates from update file...")
-        routes, stops = read_data(session, json_string)
+        routes, stops, stop_params, vehicle_params = read_data(json_string, upload_time)
         
         # Interpret route and stop updates into statistics
         print("Generating statistics...")
@@ -402,8 +468,11 @@ def lambda_handler(event, context):
         print("Beginning ingestion...")
         ingest_route_stats_by_route(session, route_stats, upload_time)
         ingest_route_stats_by_time(session, route_stats, route_detail_results, upload_time)
+        ingest_vehicle_by_route(session, vehicle_params)
         ingest_stop_stats_by_stop(session, stop_stats, upload_time)
         ingest_stop_stats_by_time(session, stop_stats, stop_detail_results, upload_time)
+        ingest_stop_updates(session, stop_params)
+        ingest_update_time(session, upload_time)
         
         print("Ingestion complete!")
 
@@ -412,7 +481,7 @@ def lambda_handler(event, context):
             'body': 'Success'
         }
     except Exception as err:
-        print(err)
+        print("ERROR:", err)
 
     return {
         'statusCode': 400,
