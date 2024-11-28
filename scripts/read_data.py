@@ -364,6 +364,46 @@ def delete_test_records(session, table):
         session.execute(statement)
         
         
+def get_english(translations):
+    for translation in translations:
+        if translation['language'] == 'en':
+            return translation['text']
+    return ''
+        
+        
+def read_alerts(path):
+    results = []
+    with open(path, 'r') as f:
+        data = json.load(f)
+        for alert in data:
+            alert = json.loads(alert)
+            alert_details = alert['alert']
+            header = get_english(alert_details['headerText']['translation'])
+            description = get_english(alert_details['descriptionText']['translation'])
+            if (len(alert_details['activePeriod']) > 1):
+                print(alert_details)
+            try:
+                start = alert_details['activePeriod'][0]['start']
+            except KeyError:
+                start = None
+            try:
+                end = alert_details['activePeriod'][0]['end']
+            except KeyError:
+                end = None
+            params = (
+                alert['id'],
+                start,
+                end,
+                alert_details['cause'],
+                alert_details['effect'],
+                header,
+                description,
+                alert_details['severityLevel']
+            )
+            results.append(params)
+    return results
+        
+        
 def read_position_update(path, upload_time):
     results = []
     with open(path, 'r') as f:
@@ -421,11 +461,13 @@ def ingest_update_time(session, update_time):
 
 if __name__ == '__main__':
     # session = None
-    session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
+    # session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
     # path = '../data/2024-11-26 16_00_55.716370.json'
-    path = '../data/2024-11-27 05_00_24.553387.json'
-    upload_time = datetime.fromisoformat('2024-11-26T16:00:55.716370').replace(tzinfo=timezone.utc)
-    ingest_update_time(session, upload_time)
+    # path = '../data/2024-11-27 05_00_24.553387.json'
+    path = '../data/2024-11-27 22_30_38.575946.json'
+    # upload_time = datetime.fromisoformat('2024-11-26T16:00:55.716370').replace(tzinfo=timezone.utc)
+    print(len(read_alerts(path)))
+    # ingest_update_time(session, upload_time)
     # read_position_update(path, upload_time)
     
     # Get route and stop updates from update file

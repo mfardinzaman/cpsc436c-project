@@ -192,6 +192,24 @@ def create_update_time_table(session):
     )
     
     
+def create_alert_table(session):
+    session.execute(
+        """
+        CREATE TABLE IF NOT EXISTS alert(
+            alert_id varchar,
+            start timestamp,
+            end timestamp,
+            cause varchar,
+            effect varchar,
+            header varchar,
+            description varchar,
+            severity_level varchar,
+            PRIMARY KEY (severity_level, end, alert_id)
+        ) WITH CLUSTERING ORDER BY (end DESC)
+        """
+    )
+    
+    
 def create_batch():
     return BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=ConsistencyLevel.LOCAL_QUORUM)
 
@@ -321,6 +339,7 @@ if __name__ == "__main__":
     #     VALUES ('ALL', 'ALL', 'ALL', -1, -1, 'ALL', 'ALL')
     #     """
     # )
+    create_alert_table(session)
     # create_vehicle_by_route_table(session)
     # create_route_statistic_tables(session, test=False)
     # create_stop_statistic_tables(session, test=True)
