@@ -56,7 +56,7 @@ const RouteLineChart = ({ routeId, directionId }) => {
 
 
     return (
-        <Box sx={{ padding: '2%' }}>
+        <Box sx={{ padding: '2%', display: 'flex', flexDirection: { xs: 'column', sm: 'row' } }}>
             <FormControl sx={{ minWidth: 200, marginBottom: 2 }}>
                 <InputLabel id="time-range-label" shrink>Time Range</InputLabel>
                 <Select
@@ -65,6 +65,7 @@ const RouteLineChart = ({ routeId, directionId }) => {
                     value={timeRange}
                     onChange={handleTimeRangeChange}
                     label="Time Range"
+                    sx={{ maxWidth: { xs: '50vw', sm: 200 } }}
                 >
                     <MenuItem value="day">Past Day</MenuItem>
                     <MenuItem value="week">Past Week</MenuItem>

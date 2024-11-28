@@ -23,6 +23,7 @@ def create_session(access_key_id, secret_access_key, session_token):
     cluster = Cluster(['cassandra.ca-central-1.amazonaws.com'], ssl_context=ssl_context, auth_provider=auth_provider,
                     port=9142)
     session = cluster.connect(keyspace='Translink')
+    session.default_consistency_level = ConsistencyLevel.LOCAL_QUORUM
     return session
 
 
@@ -314,7 +315,13 @@ def list_route_rows(session):
 
 if __name__ == "__main__":
     session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
-    create_vehicle_by_route_table(session)
+    # session.execute(
+    #     """
+    #     INSERT INTO route (route_id, route_short_name, route_long_name, route_type, direction_id, direction, direction_name)
+    #     VALUES ('ALL', 'ALL', 'ALL', -1, -1, 'ALL', 'ALL')
+    #     """
+    # )
+    # create_vehicle_by_route_table(session)
     # create_route_statistic_tables(session, test=False)
     # create_stop_statistic_tables(session, test=True)
     # create_stop_update_table(session)
