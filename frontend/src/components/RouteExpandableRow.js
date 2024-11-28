@@ -4,14 +4,15 @@ import moment from 'moment-timezone';
 import { TableRow, TableCell, Box, CircularProgress } from "@mui/material";
 import service from "../services/services";
 
-import mockBuses from "../mock/mockVehicles.json";
 import RouteDelayLineChart from "./charts/RouteDelayLineChart";
 import RouteVeryLateLineChart from "./charts/RouteVeryLateLineChart";
 import RouteVeryEarlyLineChart from "./charts/RouteVeryEarlyLineChart";
 import RouteVehicleCountLineChart from "./charts/RouteVehicleCountLineChart";
+import { convertUnixTimeToPST } from "../utils/time";
 
 const RouteExpandableRow = ({ rowData, rowMeta, routes }) => {
-    const [buses, setBuses] = useState(mockBuses)
+    const [vehicles, setVehicles] = useState([])
+    const [vehiclesLoading, setVehiclesLoading] = useState(false)
     const [historicalDataLoading, setHistoricalDataLoading] = useState(false);
     const [historicalData, setHistoricalData] = useState([])
     const colSpan = rowData.length + 1;
@@ -41,12 +42,36 @@ const RouteExpandableRow = ({ rowData, rowMeta, routes }) => {
         } finally {
             setHistoricalDataLoading(false);
         }
-        console.log(historicalData)
+    }, [routeData])
+
+    const getVehiclesData = useCallback(async () => {
+        setVehiclesLoading(true)
+        try {
+            const result = await service.getRouteVehicles({
+                route_id: routeData['route_id'],
+                direction_id: routeData['direction_id']
+            });
+
+            if (result.statusCode === 200) {
+                setVehicles(result.body)
+            } else {
+                console.log('Error fetching route stats over time:', result);
+            }
+        } catch (error) {
+            console.log('Error:', error);
+        } finally {
+            setVehiclesLoading(false);
+        }
     }, [routeData])
 
     useEffect(() => {
         getHistoricalData();
     }, [getHistoricalData])
+
+    useEffect(() => {
+        getVehiclesData();
+    }, [getVehiclesData])
+
     return (
         <TableRow
             sx={{
@@ -54,32 +79,36 @@ const RouteExpandableRow = ({ rowData, rowMeta, routes }) => {
             }}
         >
             <TableCell colSpan={colSpan}>
-                <MUIDataTable
-                    title={"Buses Details"}
-                    data={buses.map((bus) => ({
-                        label: bus.vehicle_label,
-                        status: bus.current_status,
-                        lateness: Math.floor(Math.random() * 15), // mock
-                        lastStop: `Stop ${Math.floor(Math.random() * 10)}`, // mock
-                        lastUpdate: new Date(bus.update_time).toLocaleString(),
-                    }))}
-                    columns={[
-                        { name: "label", label: "Bus Label" },
-                        { name: "status", label: "Status" },
-                        { name: "lateness", label: "Lateness (min)" },
-                        { name: "lastStop", label: "Last Stop" },
-                        { name: "lastUpdate", label: "Last Update" },
-                    ]}
-                    options={{
-                        selectableRows: "none",
-                        pagination: false,
-                        search: false,
-                        print: false,
-                        download: false,
-                        filter: false,
-                        responsive: 'standard'
-                    }}
-                />
+                {
+                    vehiclesLoading ? <CircularProgress /> : (
+                        <MUIDataTable
+                            title={"Vehicle Details"}
+                            data={vehicles.map((bus) => ({
+                                label: bus.vehicle_label,
+                                lateness: Math.round(bus.delay / 60),
+                                lastStop: bus.stop_id,
+                                lastUpdate: convertUnixTimeToPST(moment.utc(bus.update_time).valueOf()),
+                                expectedArrival: convertUnixTimeToPST(moment.utc(bus.expected_arrival).valueOf()),
+                            }))}
+                            columns={[
+                                { name: "label", label: "Bus Label" },
+                                { name: "lateness", label: "Lateness (min)" },
+                                { name: "lastStop", label: "Last Stop" },
+                                { name: "expectedArrival", label: "Expected Arrival Time" },
+                                { name: "lastUpdate", label: "Last Update" },
+                            ]}
+                            options={{
+                                selectableRows: "none",
+                                pagination: false,
+                                search: false,
+                                print: false,
+                                download: false,
+                                filter: false,
+                                responsive: 'standard'
+                            }}
+                        />
+                    )
+                }
                 {historicalDataLoading ? <CircularProgress /> : (
                     <Box
                         sx={{
