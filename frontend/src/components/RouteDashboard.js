@@ -103,11 +103,7 @@ const RouteDashboard = () => {
                 padding: 2,
             }}
         >
-            <Typography variant="h4">
-                Routes
-            </Typography>
-
-            {loading ? (  // Show loading indicator while fetching
+            {loading ? (
                 <CircularProgress />
             ) : (
                 <MUIDataTable

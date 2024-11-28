@@ -5,4 +5,4 @@
  - run `npm install --legacy-peer-deps` in the root directory and in the frontend directory
 
 ## Starting the app
- - run `npm start`
+ - run `npm start` 

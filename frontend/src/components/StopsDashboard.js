@@ -66,9 +66,6 @@ const StopsDashboard = () => {
                 padding: 2,
             }}
         >
-            <Typography variant="h4" gutterBottom>
-                Stops
-            </Typography>
             <MUIDataTable
                 data={stops}
                 columns={columns}
