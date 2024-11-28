@@ -1,13 +1,14 @@
 import json
 import statistics
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from cassandra.cluster import Cluster
 from ssl import SSLContext, PROTOCOL_TLSv1_2 , CERT_REQUIRED
 import boto3
 from cassandra_sigv4.auth import SigV4AuthProvider
 from cassandra.query import BatchStatement, ConsistencyLevel, BatchType, SimpleStatement
 from cassandra.concurrent import execute_concurrent, execute_concurrent_with_args 
+import time
 
 
 # Number of seconds deviance for a bus to be considered "very late" or "very early"
@@ -457,16 +458,74 @@ def ingest_update_time(session, update_time):
     prepared = session.prepare(f"INSERT INTO update_time(day, update_time) VALUES (?, ?)")
     bound = prepared.bind((update_time.date(), update_time))
     session.execute(bound)
+    
+    
+def get_last_update_time(session):
+    statement = session.prepare("SELECT * FROM update_time WHERE day = ? LIMIT 1")
+    now = datetime.now()
+    today = now.date()
+    yesterday = (now - timedelta(days=1)).date()
+    results = execute_concurrent_with_args(session, statement, [(today,), (yesterday,)])
+    update_time = None
+    for (success, result) in results:
+        if not success:
+            print("ERROR:", result)
+        else:
+            result = result.one()
+            if update_time is None or result.day == today:
+                update_time = result.update_time
+    return update_time
+
+
+def get_vehicle_updates(session, route_id, direction_id, update_time):
+    prepared = session.prepare("SELECT * FROM vehicle_by_route WHERE update_time = ? AND route_id = ? AND direction_id = ?")
+    bound = prepared.bind((update_time, route_id, direction_id))
+    results = session.execute(bound)
+    return results
+
+
+def get_route_updates(session, update_time):
+    prepared = session.prepare("SELECT * FROM route_stat_by_time WHERE day = ? AND update_time = ?")
+    bound = prepared.bind((update_time.date(), update_time))
+    results = session.execute(bound)
+    return results
+
+
+def get_stop_stats(session, update_time):
+    prepared = session.prepare("SELECT * FROM stop_stat_by_time WHERE day = ? AND update_time = ?")
+    bound = prepared.bind((update_time.date(), update_time))
+    results = session.execute(bound)
+    return results
 
 
 if __name__ == '__main__':
     # session = None
-    # session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
+    t1 = time.time()
+    session = create_session(os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'), os.getenv('AWS_SESSION_TOKEN'))
+    t2 = time.time()
+    print("Connection time:", t2 - t1)
+    update_time = get_last_update_time(session)
+    t3 = time.time()
+    print("Update time retrieval time:", t3 - t2)
+    print("Update time:", update_time)
+    results = get_vehicle_updates(session, "6636", 0, update_time).all()
+    t4 = time.time()
+    print("Vehicle updates retrieval time:", t4 - t3)
+    print(len(results))
+    results = get_route_updates(session, update_time).all()
+    t5 = time.time()
+    print("Routes update retrieval time:", t5 - t4)
+    print(len(results))
+    results = get_stop_stats(session, update_time).all()
+    t6 = time.time()
+    print("Stop stats retrieval time:", t6 - t5)
+    print(len(results))
+    
     # path = '../data/2024-11-26 16_00_55.716370.json'
     # path = '../data/2024-11-27 05_00_24.553387.json'
-    path = '../data/2024-11-27 22_30_38.575946.json'
+    # path = '../data/2024-11-27 22_30_38.575946.json'
     # upload_time = datetime.fromisoformat('2024-11-26T16:00:55.716370').replace(tzinfo=timezone.utc)
-    print(len(read_alerts(path)))
+    # print(len(read_alerts(path)))
     # ingest_update_time(session, upload_time)
     # read_position_update(path, upload_time)
     
