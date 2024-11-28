@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import MUIDataTable from "mui-datatables";
 import { Box, Typography, Accordion, AccordionDetails, AccordionSummary, TableRow, TableCell } from "@mui/material";
 import { HelpOutline, Info, WarningAmber, Error } from "@mui/icons-material";
@@ -54,7 +54,6 @@ const AlertsSummary = () => {
 
     return (
         <>
-            <Typography variant='h4'>Alerts</Typography>
             <Accordion>
                 <AccordionSummary
                     expandIcon={<ExpandMoreIcon />}
