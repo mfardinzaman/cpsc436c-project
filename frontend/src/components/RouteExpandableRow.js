@@ -10,20 +10,19 @@ import RouteVeryEarlyLineChart from "./charts/RouteVeryEarlyLineChart";
 import RouteVehicleCountLineChart from "./charts/RouteVehicleCountLineChart";
 import { convertUnixTimeToPST } from "../utils/time";
 
-const RouteExpandableRow = ({ rowData, rowMeta, routes }) => {
+const RouteExpandableRow = ({ rowData, route }) => {
     const [vehicles, setVehicles] = useState([])
     const [vehiclesLoading, setVehiclesLoading] = useState(false)
     const [historicalDataLoading, setHistoricalDataLoading] = useState(false);
     const [historicalData, setHistoricalData] = useState([])
     const colSpan = rowData.length + 1;
-    const routeData = routes[rowMeta.rowIndex]
 
     const getHistoricalData = useCallback(async () => {
         setHistoricalDataLoading(true)
         try {
             const result = await service.getRouteStatsOverTime({
-                route_id: routeData['route_id'],
-                directionId: routeData['direction_id']
+                route_id: route['route_id'],
+                directionId: route['direction_id']
             });
 
             if (result.statusCode === 200) {
@@ -42,14 +41,14 @@ const RouteExpandableRow = ({ rowData, rowMeta, routes }) => {
         } finally {
             setHistoricalDataLoading(false);
         }
-    }, [routeData])
+    }, [route])
 
     const getVehiclesData = useCallback(async () => {
         setVehiclesLoading(true)
         try {
             const result = await service.getRouteVehicles({
-                route_id: routeData['route_id'],
-                direction_id: routeData['direction_id']
+                route_id: route['route_id'],
+                direction_id: route['direction_id']
             });
 
             if (result.statusCode === 200) {
@@ -62,7 +61,7 @@ const RouteExpandableRow = ({ rowData, rowMeta, routes }) => {
         } finally {
             setVehiclesLoading(false);
         }
-    }, [routeData])
+    }, [route])
 
     useEffect(() => {
         getHistoricalData();

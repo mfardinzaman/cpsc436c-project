@@ -58,6 +58,7 @@ const RouteVeryLateLineChart = ({ data }) => {
                         <YAxis
                             name='Percentage of buses > 5 minutes early'
                             label={{ value: 'Percentage', angle: -90, position: 'center', offset: 10 }}
+                            allowDecimals={false}
                         />
                         <Tooltip
                             formatter={tooltipFormatter}
