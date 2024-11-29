@@ -77,7 +77,7 @@ def lambda_handler(event, context):
     try:
         session = create_session()
         update_time = get_last_update_time(session)
-        vehicles = get_vehicle_updates(session, event['route_id'], event['direction_id'], update_time)
+        vehicles = get_vehicle_updates(session, event['route_id'], int(event['direction_id']), update_time)
 
         stopIdNames = get_stops(session)
         
