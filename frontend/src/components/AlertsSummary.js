@@ -1,10 +1,12 @@
-import React from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import MUIDataTable from "mui-datatables";
-import { Box, Typography, Accordion, AccordionDetails, AccordionSummary, TableRow, TableCell } from "@mui/material";
+import { Box, Typography, Accordion, AccordionDetails, AccordionSummary, TableRow, TableCell, CircularProgress } from "@mui/material";
 import { HelpOutline, Info, WarningAmber, Error } from "@mui/icons-material";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import service from "../services/services";
+import moment from 'moment-timezone'
 
-import mockAlerts from '../mock/mockAlerts.json';
+import { convertUnixTimeToPST } from "../utils/time";
 
 const severityOrder = {
     SEVERE: 4,
@@ -21,110 +23,185 @@ const severityConfig = {
 };
 
 const AlertsSummary = () => {
+    const [alerts, setAlerts] = useState([])
+    const [severityCounts, setSeverityCounts] = useState([])
+    const [loading, setLoading] = useState(false)
 
-    const activeAlerts = mockAlerts; // TODO: filter for currently active alerts
+    const fetchAlerts = useCallback(async () => {
+        setLoading(true);
+        try {
+            const result = await service.getAlerts();
 
-    const groupedAlerts = activeAlerts.reduce((acc, alert) => {
-        acc[alert.severity_level] = acc[alert.severity_level] || [];
-        acc[alert.severity_level].push(alert);
-        return acc;
-    }, {});
+            if (result.statusCode === 200) {
+                const today = moment.utc();
+                const activeAlerts = result.body.filter((alert) => {
+                    const start = moment.utc(alert.start);
+                    const end = moment.utc(alert.end);
+                    return today.isBetween(start, end, null, '[]');
+                });
+                setAlerts(activeAlerts)
 
-    const severityCounts = Object.entries(groupedAlerts).map(([severity, alerts]) => ({
-        severity,
-        count: alerts.length,
-    }));
-
-    const totalAlerts = activeAlerts.length;
-
-    const sortedAlerts = activeAlerts.sort(
-        (a, b) =>
-            severityOrder[b.severity_level] - severityOrder[a.severity_level] ||
-            new Date(b.start) - new Date(a.start)
-    );
+                const groupedAlerts = activeAlerts.reduce((acc, alert) => {
+                    acc[alert.severity_level] = acc[alert.severity_level] || [];
+                    acc[alert.severity_level].push(alert);
+                    return acc;
+                }, {});
+                const counts = Object.entries(groupedAlerts).map(([severity, alerts]) => ({
+                    severity,
+                    count: alerts.length,
+                }));
+                setSeverityCounts(counts)
+            } else {
+                console.log('Error fetching routes:', result.statusCode);
+            }
+        } catch (error) {
+            console.log('Error:', error);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
     const tableColumns = [
-        { name: "header", label: "Header" },
-        { name: "severity_level", label: "Severity Level" },
-        { name: "cause", label: "Cause" },
-        { name: "effect", label: "Effect" },
-        { name: "start", label: "Start Time" },
-        { name: "end", label: "End Time" },
+        {
+            name: "header",
+            label: "Header",
+            options: {
+                filter: false,
+                sort: false
+            }
+        },
+        {
+            name: "severity_level",
+            label: "Severity Level",
+            options: {
+                customSort: (data, colIndex, order) => {
+                    return data.sort((a, b) => {
+                        const severityA = severityOrder[a[colIndex]] || 0;
+                        const severityB = severityOrder[b[colIndex]] || 0;
+                        return (order === 'asc') ? severityA - severityB : severityB - severityA;
+                    });
+                },
+            }
+        },
+        {
+            name: "cause",
+            label: "Cause",
+            options: {
+                sort: false
+            }
+        },
+        {
+            name: "effect",
+            label: "Effect",
+            options: {
+                sort: false
+            }
+        },
+        { 
+            name: "start", 
+            label: "Start Time",
+            options: {
+                customBodyRender: (value) => convertUnixTimeToPST(value.valueOf()),
+                filter: false
+            },
+        },
+        {
+            name: "end",
+            label: "End Time",
+            options: {
+                customBodyRender: (value) => {
+                    return value.year() >= 2100
+                        ? "Until Further Notice"
+                        : convertUnixTimeToPST(value.valueOf());
+                },
+                filter: false
+            },
+        },
     ];
+
+    useEffect(() => {
+        fetchAlerts()
+    }, [fetchAlerts])
 
     return (
         <>
-            <Accordion>
-                <AccordionSummary
-                    expandIcon={<ExpandMoreIcon />}
-                    aria-controls="panel1-content"
-                    id="panel1-header"
-                >
-                    <Box sx={{ display: "flex", alignItems: "center", width: "100%" }}>
-                        <Typography variant="h6" sx={{ marginRight: 3 }}>
-                            Total Alerts: {totalAlerts}
-                        </Typography>
-                        {severityCounts.map(({ severity, count }) => {
-                            const config = severityConfig[severity] || severityConfig.UNKNOWN_SEVERITY;
-                            return (
-                                <Box
-                                    key={severity}
-                                    sx={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        marginRight: 3,
-                                    }}
-                                >
-                                    {config.icon}
-                                    <Typography variant="subtitle1" sx={{ marginLeft: 1 }}>
-                                        {config.label}: {count}
-                                    </Typography>
-                                </Box>
-                            );
-                        })}
-                    </Box>
-                </AccordionSummary>
-                <AccordionDetails>
-                    <MUIDataTable
-                        title={"All Alerts"}
-                        data={sortedAlerts.map((alert) => ({
-                            header: alert.header,
-                            severity_level: alert.severity_level,
-                            cause: alert.cause,
-                            effect: alert.effect,
-                            start: new Date(alert.start).toLocaleString(),
-                            end: new Date(alert.end).toLocaleString(),
-                            description: alert.description
-                        }))}
-                        columns={tableColumns}
-                        options={{
-                            selectableRows: "none",
-                            search: false,
-                            pagination: true,
-                            print: false,
-                            download: false,
-                            filter: true,
-                            expandableRows: true,
-                            expandableRowsHeader: false,
-                            renderExpandableRow: (rowData, rowMeta) => {
-                                const description = sortedAlerts[rowMeta.dataIndex].description;
-
+            {loading ? <CircularProgress /> : (
+                <Accordion>
+                    <AccordionSummary
+                        expandIcon={<ExpandMoreIcon />}
+                        aria-controls="panel1-content"
+                        id="panel1-header"
+                    >
+                        <Box sx={{ display: "flex", alignItems: "center", width: "100%" }}>
+                            <Typography sx={{ marginRight: 3 }}>
+                                Total Alerts: {alerts.length}
+                            </Typography>
+                            {severityCounts.map(({ severity, count }) => {
+                                const config = severityConfig[severity] || severityConfig.UNKNOWN_SEVERITY;
                                 return (
-                                    <TableRow>
-                                        <TableCell colSpan={tableColumns.length}>
-                                            <Box>
-                                                <Typography variant="body1">
-                                                    {description}
-                                                </Typography>
-                                            </Box>
-                                        </TableCell>
-                                    </TableRow>
+                                    <Box
+                                        key={severity}
+                                        sx={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            marginRight: 3,
+                                        }}
+                                    >
+                                        {config.icon}
+                                        <Typography variant="subtitle1" sx={{ marginLeft: 1 }}>
+                                            {config.label}: {count}
+                                        </Typography>
+                                    </Box>
                                 );
-                            },
-                        }}
-                    />
-                </AccordionDetails>
-            </Accordion>
+                            })}
+                        </Box>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                        <MUIDataTable
+                            title={"Active Alerts"}
+                            data={alerts.map((alert) => ({
+                                header: alert.header,
+                                severity_level: alert.severity_level,
+                                cause: alert.cause,
+                                effect: alert.effect,
+                                start: moment.utc(alert.start),
+                                end: moment.utc(alert.end),
+                                description: alert.description
+                            }))}
+                            columns={tableColumns}
+                            options={{
+                                selectableRows: "none",
+                                search: false,
+                                pagination: true,
+                                print: false,
+                                download: false,
+                                filter: true,
+                                expandableRows: true,
+                                expandableRowsHeader: false,
+                                sortOrder: {
+                                    name: "severity_level",
+                                    direction: "desc",
+                                },
+                                renderExpandableRow: (rowData, rowMeta) => {
+                                    const description = alerts[rowMeta.dataIndex].description;
+
+                                    return (
+                                        <TableRow>
+                                            <TableCell colSpan={tableColumns.length+1}>
+                                                <Box>
+                                                    <Typography variant="body2" textAlign='left'>
+                                                        {description}
+                                                    </Typography>
+                                                </Box>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                },
+                            }}
+                        />
+                    </AccordionDetails>
+                </Accordion>
+            )}
         </>
     );
 };
