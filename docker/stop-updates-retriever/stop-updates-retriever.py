@@ -9,7 +9,6 @@ from cassandra_sigv4.auth import SigV4AuthProvider
 from cassandra.query import SimpleStatement, BatchStatement, ConsistencyLevel, BatchType
 from cassandra.concurrent import execute_concurrent, execute_concurrent_with_args
 
-
 HIGH_DELAY = 300
 
 
@@ -39,7 +38,6 @@ def create_batch():
 def create_statement(query):
     return SimpleStatement(query_string=query, consistency_level=ConsistencyLevel.LOCAL_QUORUM)
 
-    
 def get_last_update_time(session):
     statement = session.prepare("SELECT * FROM update_time WHERE day = ? LIMIT 1")
     now = datetime.now()
@@ -55,18 +53,13 @@ def get_last_update_time(session):
             if update_time is None or result.day == today:
                 update_time = result.update_time
     return update_time
-
-def get_route_stats(session, update_time):
-    # query = create_statement(f"SELECT route_id, direction_id, vehicle_count, average_delay, very_late_count FROM route_stat_by_route WHERE route_id = '{route_id}' AND direction_id = {direction_id} LIMIT 1;")
-    # query = create_statement(f"SELECT * FROM route_stat_by_time WHERE day = '{datetime.date(datetime.today())}' AND update_time > '{datetime.date(datetime.now()) - timedelta(hours=1)}';")
+    
+def get_stop_updates(session, update_time, stop_id):
+    # query = create_statement(f"SELECT * FROM stop_update WHERE update_time > '{datetime.date(datetime.now()) - timedelta(hours=1)}' AND stop_id = '{stop_id}';")
     # results = session.execute(query)
-    # results = results.all()
-    # if (len(results) == 0):
-    #     query = create_statement(f"SELECT * FROM route_stat_by_time WHERE day = '{datetime.date(datetime.today() - timedelta(days=1))}' AND update_time > '{datetime.date(datetime.now()) - timedelta(hours=1)}';")
-    #     results = session.execute(query)
 
-    prepared = session.prepare("SELECT * FROM route_stat_by_time WHERE day = ? AND update_time = ?")
-    bound = prepared.bind((update_time.date(), update_time))
+    prepared = session.prepare("SELECT * FROM stop_update WHERE update_time = ? AND stop_id = ?")
+    bound = prepared.bind((update_time, stop_id))
     results = session.execute(bound)
     return results
 
@@ -76,26 +69,21 @@ def lambda_handler(event, context):
     try:
         session = create_session()
         update_time = get_last_update_time(session)
-        routes = get_route_stats(session, update_time)
+        stops = get_stop_updates(session, update_time, event['stop_id'])
 
         results = []
-        for routeData in routes:
+        for stopData in stops:
             result = {
-                'direction_id': routeData.direction_id,
-                'route_id': routeData.route_id,
-                'update_time': routeData.update_time.isoformat(),
-                'average_delay': routeData.average_delay,
-                'direction': routeData.direction,
-                'direction_name': routeData.direction_name,
-                'median_delay': routeData.median_delay,
-                'route_long_name': routeData.route_long_name,
-                'route_short_name': routeData.route_short_name,
-                'route_type': routeData.route_type,
-                'vehicle_count': routeData.vehicle_count,
-                'very_early_count': routeData.very_early_count,
-                'very_late_count': routeData.very_late_count
+                'trip_id': stopData.trip_id,
+                'stop_id': stopData.stop_id,
+                'update_time': stopData.update_time.isoformat(),
+                'delay': stopData.delay,
+                'direction_id': stopData.direction_id,
+                'route_id': stopData.route_id,
+                'stop_time': stopData.stop_time.isoformat(),
+                'vehicle_label': stopData.vehicle_label
             }
-            # routeData.update_time = str(routeData.update_time.isoformat())
+            # stopData.update_time = str stopData.update_time.isoformat())
             results.append(result)
 
         return {
