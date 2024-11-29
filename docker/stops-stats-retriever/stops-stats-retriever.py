@@ -56,48 +56,58 @@ def get_last_update_time(session):
                 update_time = result.update_time
     return update_time
 
-def get_route_stats(session, update_time):
-    # query = create_statement(f"SELECT route_id, direction_id, vehicle_count, average_delay, very_late_count FROM route_stat_by_route WHERE route_id = '{route_id}' AND direction_id = {direction_id} LIMIT 1;")
-    # query = create_statement(f"SELECT * FROM route_stat_by_time WHERE day = '{datetime.date(datetime.today())}' AND update_time > '{datetime.date(datetime.now()) - timedelta(hours=1)}';")
-    # results = session.execute(query)
-    # results = results.all()
-    # if (len(results) == 0):
-    #     query = create_statement(f"SELECT * FROM route_stat_by_time WHERE day = '{datetime.date(datetime.today() - timedelta(days=1))}' AND update_time > '{datetime.date(datetime.now()) - timedelta(hours=1)}';")
-    #     results = session.execute(query)
-
-    prepared = session.prepare("SELECT * FROM route_stat_by_time WHERE day = ? AND update_time = ?")
+def get_stops_stats(session, update_time):
+    # prepared = session.prepare("SELECT * FROM stop_stat_by_time WHERE day = ? AND update_time = ?")
+    prepared = session.prepare("SELECT stop_id, stop_name, stop_code, average_delay, very_late_count, stop_count FROM stop_stat_by_time WHERE day = ? AND update_time = ?")
     bound = prepared.bind((update_time.date(), update_time))
     results = session.execute(bound)
     return results
 
+# def get_stops_stats(session):
+#     query = create_statement(f"SELECT * FROM stop_stat_by_time WHERE day = '{datetime.date(datetime.today())}' AND update_time > '{datetime.date(datetime.now()) - timedelta(hours=1)}';")
+#     results = session.execute(query)
+#     results = results.all()
+#     if (len(results) == 0):
+#         query = create_statement(f"SELECT * FROM stop_stat_by_time WHERE day = '{datetime.date(datetime.today() - timedelta(days=1))}' AND update_time > '{datetime.date(datetime.now()) - timedelta(hours=1)}';")
+#         results = session.execute(query)
+
+#     return results
 
 
 def lambda_handler(event, context):
     try:
         session = create_session()
+
         update_time = get_last_update_time(session)
-        routes = get_route_stats(session, update_time)
+        stops = get_stops_stats(session, update_time)
+
 
         results = []
-        for routeData in routes:
-            result = {
-                'direction_id': routeData.direction_id,
-                'route_id': routeData.route_id,
-                'update_time': routeData.update_time.isoformat(),
-                'average_delay': routeData.average_delay,
-                'direction': routeData.direction,
-                'direction_name': routeData.direction_name,
-                'median_delay': routeData.median_delay,
-                'route_long_name': routeData.route_long_name,
-                'route_short_name': routeData.route_short_name,
-                'route_type': routeData.route_type,
-                'vehicle_count': routeData.vehicle_count,
-                'very_early_count': routeData.very_early_count,
-                'very_late_count': routeData.very_late_count,
-                'very_late_percentage': ((routeData.very_late_count / routeData.vehicle_count) * 100)//1
-            }
-            # routeData.update_time = str(routeData.update_time.isoformat())
-            results.append(result)
+        # latestSet = False
+        for stopData in stops:
+            # if (latestSet == False):
+            #     latestUpdate = stopData.update_time
+            #     latestSet = True
+            # elif (stopData.update_time < latestUpdate):
+            #     break
+            # result = {
+            #     'zone_id': stopData.zone_id,
+            #     'stop_id': stopData.stop_id,
+            #     'update_time': stopData.update_time.isoformat(),
+            #     'average_delay': stopData.average_delay,
+            #     'latitude': stopData.latitude,
+            #     'longitude': stopData.longitude,
+            #     'location_type': stopData.location_type,
+            #     'median_delay': stopData.median_delay,
+            #     'stop_code': stopData.stop_code,
+            #     'stop_count': stopData.stop_count,
+            #     'stop_name': stopData.stop_name,
+            #     'wheelchair_boarding': stopData.wheelchair_boarding,
+            #     'very_early_count': stopData.very_early_count,
+            #     'very_late_count': stopData.very_late_count
+            # }
+            # stopData.update_time = str stopData.update_time.isoformat())
+            results.append(stopData)
 
         return {
             'statusCode': 200,

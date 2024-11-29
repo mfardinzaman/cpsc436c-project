@@ -59,12 +59,12 @@ const RouteDashboard = () => {
             }
         },
         {
-            name: "very_late_count",
+            name: "very_late_percentage",
             label: "% Vehicles >5 minutes late",
             options: {
                 customBodyRender: (value, { rowIndex }) => {
                     const rowObject = routes[rowIndex];
-                    const percentage = Math.floor((value / rowObject["vehicle_count"]) * 100)
+                    const percentage = value; /*Math.floor((value / rowObject["vehicle_count"]) * 100)*/
                     return <Typography>{`${percentage}%`}</Typography>
                 },
                 searchable: false
