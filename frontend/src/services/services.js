@@ -20,11 +20,21 @@ const getRouteVehicles = async ({ route_id, direction_id }) => {
     return data
 }
 
+const getStopStats = async () => {
+    const data = await fetchHelper('/stop_stats', 'GET', {})
+    return data
+}
+
+const getStopUpdates = async ({ stop_id }) => {
+    const data = await fetchHelper(`/stop_updates?stop_id=${stop_id}`, 'GET', {})
+    return data
+}
+
 const getAlerts = async () => {
     const data = await fetchHelper('/alerts', 'GET', {})
     return data
 }
 
-const service = { getRoutes, getRouteStats, getRouteStatsOverTime, getRouteVehicles, getAlerts }
+const service = { getRoutes, getRouteStats, getRouteStatsOverTime, getRouteVehicles, getStopStats, getStopUpdates, getAlerts }
 
 export default service

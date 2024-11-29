@@ -5,7 +5,6 @@ import { Typography, Box, CircularProgress } from "@mui/material";
 import RouteExpandableRow from "./RouteExpandableRow";
 import service from '../services/services';
 
-
 const RouteDashboard = () => {
     const [routes, setRoutes] = useState(mockRoutes);
     const [loading, setLoading] = useState(false);
@@ -78,9 +77,7 @@ const RouteDashboard = () => {
         expandableRows: true,
         expandableRowsHeader: false,
         renderExpandableRow: (rowData, rowMeta) => {
-            console.log(`row data ${rowData}`)
-            console.log(`row meta ${rowMeta}`)
-            return(
+            return (
             <RouteExpandableRow
                 route={routes[rowMeta.dataIndex]}
                 rowData={rowData}
