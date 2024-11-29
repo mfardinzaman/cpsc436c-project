@@ -93,7 +93,8 @@ def lambda_handler(event, context):
                 'route_type': routeData.route_type,
                 'vehicle_count': routeData.vehicle_count,
                 'very_early_count': routeData.very_early_count,
-                'very_late_count': routeData.very_late_count
+                'very_late_count': routeData.very_late_count,
+                'very_late_percentage': ((routeData.very_late_count / routeData.vehicle_count) * 100)//1
             }
             # routeData.update_time = str(routeData.update_time.isoformat())
             results.append(result)

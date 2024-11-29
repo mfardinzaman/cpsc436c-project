@@ -85,14 +85,14 @@ const RouteExpandableRow = ({ rowData, route }) => {
                             data={vehicles.map((bus) => ({
                                 label: bus.vehicle_label,
                                 lateness: Math.round(bus.delay / 60),
-                                lastStop: bus.stop_id,
+                                nextStop: bus.stop_name,
                                 lastUpdate: convertUnixTimeToPST(moment.utc(bus.update_time).valueOf()),
                                 expectedArrival: convertUnixTimeToPST(moment.utc(bus.expected_arrival).valueOf()),
                             }))}
                             columns={[
                                 { name: "label", label: "Bus Label" },
                                 { name: "lateness", label: "Lateness (min)" },
-                                { name: "lastStop", label: "Last Stop" },
+                                { name: "nextStop", label: "Next Stop" },
                                 { name: "expectedArrival", label: "Expected Arrival Time" },
                                 { name: "lastUpdate", label: "Last Update" },
                             ]}
