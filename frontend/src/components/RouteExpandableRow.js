@@ -91,7 +91,7 @@ const RouteExpandableRow = ({ rowData, route }) => {
                             }))}
                             columns={[
                                 { name: "label", label: "Bus Label" },
-                                { name: "lateness", label: "Lateness (min)" },
+                                { name: "lateness", label: "Delay (min)" },
                                 { name: "lastStop", label: "Last Stop" },
                                 { name: "expectedArrival", label: "Expected Arrival Time" },
                                 { name: "lastUpdate", label: "Last Update" },
