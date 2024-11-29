@@ -7,7 +7,7 @@ from cassandra.cluster import Cluster, DCAwareRoundRobinPolicy
 from ssl import SSLContext, PROTOCOL_TLSv1_2 , CERT_REQUIRED
 from cassandra_sigv4.auth import SigV4AuthProvider
 from cassandra.query import SimpleStatement, BatchStatement, ConsistencyLevel, BatchType
-
+from cassandra.concurrent import execute_concurrent, execute_concurrent_with_args
 
 HIGH_DELAY = 300
 
@@ -38,11 +38,29 @@ def create_batch():
 def create_statement(query):
     return SimpleStatement(query_string=query, consistency_level=ConsistencyLevel.LOCAL_QUORUM)
 
+def get_last_update_time(session):
+    statement = session.prepare("SELECT * FROM update_time WHERE day = ? LIMIT 1")
+    now = datetime.now()
+    today = now.date()
+    yesterday = (now - timedelta(days=1)).date()
+    results = execute_concurrent_with_args(session, statement, [(today,), (yesterday,)])
+    update_time = None
+    for (success, result) in results:
+        if not success:
+            print("ERROR:", result)
+        else:
+            result = result.one()
+            if update_time is None or result.day == today:
+                update_time = result.update_time
+    return update_time
     
-def get_stop_updates(session, stop_id):
-    query = create_statement(f"SELECT * FROM stop_update WHERE update_time > '{datetime.date(datetime.now()) - timedelta(hours=1)}' AND stop_id = '{stop_id}';")
-    results = session.execute(query)
+def get_stop_updates(session, update_time, stop_id):
+    # query = create_statement(f"SELECT * FROM stop_update WHERE update_time > '{datetime.date(datetime.now()) - timedelta(hours=1)}' AND stop_id = '{stop_id}';")
+    # results = session.execute(query)
 
+    prepared = session.prepare("SELECT * FROM stop_update WHERE update_time = ? AND stop_id = ?")
+    bound = prepared.bind((update_time, stop_id))
+    results = session.execute(bound)
     return results
 
 
@@ -50,16 +68,11 @@ def get_stop_updates(session, stop_id):
 def lambda_handler(event, context):
     try:
         session = create_session()
-        stops = get_stop_updates(session, event['stop_id'])
+        update_time = get_last_update_time(session)
+        stops = get_stop_updates(session, update_time, event['stop_id'])
 
         results = []
-        latestSet = False
         for stopData in stops:
-            if (latestSet == False):
-                latestUpdate = stopData.update_time
-                latestSet = True
-            elif (stopData.update_time < latestUpdate):
-                break
             result = {
                 'trip_id': stopData.trip_id,
                 'stop_id': stopData.stop_id,

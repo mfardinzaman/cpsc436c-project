@@ -7,6 +7,7 @@ from cassandra.cluster import Cluster, DCAwareRoundRobinPolicy
 from ssl import SSLContext, PROTOCOL_TLSv1_2 , CERT_REQUIRED
 from cassandra_sigv4.auth import SigV4AuthProvider
 from cassandra.query import SimpleStatement, BatchStatement, ConsistencyLevel, BatchType
+from cassandra.concurrent import execute_concurrent, execute_concurrent_with_args
 
 
 HIGH_DELAY = 300
@@ -39,15 +40,34 @@ def create_statement(query):
     return SimpleStatement(query_string=query, consistency_level=ConsistencyLevel.LOCAL_QUORUM)
 
     
-def get_route_stats(session):
-    # query = create_statement(f"SELECT route_id, direction_id, vehicle_count, average_delay, very_late_count FROM route_stat_by_route WHERE route_id = '{route_id}' AND direction_id = {direction_id} LIMIT 1;")
-    query = create_statement(f"SELECT * FROM route_stat_by_time WHERE day = '{datetime.date(datetime.today())}' AND update_time > '{datetime.date(datetime.now()) - timedelta(hours=1)}';")
-    results = session.execute(query)
-    results = results.all()
-    if (len(results) == 0):
-        query = create_statement(f"SELECT * FROM route_stat_by_time WHERE day = '{datetime.date(datetime.today() - timedelta(days=1))}' AND update_time > '{datetime.date(datetime.now()) - timedelta(hours=1)}';")
-        results = session.execute(query)
+def get_last_update_time(session):
+    statement = session.prepare("SELECT * FROM update_time WHERE day = ? LIMIT 1")
+    now = datetime.now()
+    today = now.date()
+    yesterday = (now - timedelta(days=1)).date()
+    results = execute_concurrent_with_args(session, statement, [(today,), (yesterday,)])
+    update_time = None
+    for (success, result) in results:
+        if not success:
+            print("ERROR:", result)
+        else:
+            result = result.one()
+            if update_time is None or result.day == today:
+                update_time = result.update_time
+    return update_time
 
+def get_route_stats(session, update_time):
+    # query = create_statement(f"SELECT route_id, direction_id, vehicle_count, average_delay, very_late_count FROM route_stat_by_route WHERE route_id = '{route_id}' AND direction_id = {direction_id} LIMIT 1;")
+    # query = create_statement(f"SELECT * FROM route_stat_by_time WHERE day = '{datetime.date(datetime.today())}' AND update_time > '{datetime.date(datetime.now()) - timedelta(hours=1)}';")
+    # results = session.execute(query)
+    # results = results.all()
+    # if (len(results) == 0):
+    #     query = create_statement(f"SELECT * FROM route_stat_by_time WHERE day = '{datetime.date(datetime.today() - timedelta(days=1))}' AND update_time > '{datetime.date(datetime.now()) - timedelta(hours=1)}';")
+    #     results = session.execute(query)
+
+    prepared = session.prepare("SELECT * FROM route_stat_by_time WHERE day = ? AND update_time = ?")
+    bound = prepared.bind((update_time.date(), update_time))
+    results = session.execute(bound)
     return results
 
 
@@ -55,16 +75,11 @@ def get_route_stats(session):
 def lambda_handler(event, context):
     try:
         session = create_session()
-        routes = get_route_stats(session)
+        update_time = get_last_update_time(session)
+        routes = get_route_stats(session, update_time)
 
         results = []
-        latestSet = False
         for routeData in routes:
-            if (latestSet == False):
-                latestUpdate = routeData.update_time
-                latestSet = True
-            elif (routeData.update_time < latestUpdate):
-                break
             result = {
                 'direction_id': routeData.direction_id,
                 'route_id': routeData.route_id,
