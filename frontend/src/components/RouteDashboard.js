@@ -77,13 +77,15 @@ const RouteDashboard = () => {
         selectableRows: "none",
         expandableRows: true,
         expandableRowsHeader: false,
-        renderExpandableRow: (rowData, rowMeta) => (
+        renderExpandableRow: (rowData, rowMeta) => {
+            console.log(`row data ${rowData}`)
+            console.log(`row meta ${rowMeta}`)
+            return(
             <RouteExpandableRow
+                route={routes[rowMeta.dataIndex]}
                 rowData={rowData}
-                rowMeta={rowMeta}
-                routes={routes}
             />
-        ),
+        )},
         search: true,
         print: false,
         download: false,

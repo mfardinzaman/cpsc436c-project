@@ -58,6 +58,7 @@ const RouteVehicleCountLineChart = ({ data }) => {
                         <YAxis
                             name='Vehicle Count'
                             label={{ value: 'Vehicle Count', angle: -90, position: 'center', offset: 10 }}
+                            allowDecimals={false}
                         />
                         <Tooltip
                             formatter={tooltipFormatter}

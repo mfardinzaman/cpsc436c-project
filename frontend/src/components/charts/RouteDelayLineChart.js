@@ -58,6 +58,7 @@ const RouteDelayLineChart = ({ data }) => {
                         <YAxis
                             name='Average Delay'
                             label={{ value: 'Average Delay (min)', angle: -90, position: 'center', offset: 10 }}
+                            allowDecimals={false}
                         />
                         <Tooltip
                             formatter={tooltipFormatter}
