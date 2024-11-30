@@ -3,10 +3,13 @@ import React, { useEffect, useState } from 'react'
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip } from 'recharts'
 import { convertUnixTimeToPST, generateTicks, filterByTimeRange } from '../../utils/time'
 
-const RouteDelayLineChart = ({ data }) => {
+const DelayLineChart = ({ data }) => {
     const [filteredData, setFilteredData] = useState([]);
     const [timeRange, setTimeRange] = useState('day');
     const [ticks, setTicks] = useState([]);
+
+    const minTime = Math.min(...filteredData.map((d) => d.update_time));
+    const maxTime = Math.max(...filteredData.map((d) => d.update_time));
 
     const tooltipLabelFormatter = (label) => convertUnixTimeToPST(label)
 
@@ -48,7 +51,7 @@ const RouteDelayLineChart = ({ data }) => {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis
                             dataKey="update_time"
-                            domain={['auto', 'auto']}
+                            domain={[minTime, maxTime]}
                             name='Time'
                             label={{ value: 'Time', position: 'insideBottom', offset: -5 }}
                             ticks={ticks}
@@ -58,6 +61,7 @@ const RouteDelayLineChart = ({ data }) => {
                         <YAxis
                             name='Average Delay'
                             label={{ value: 'Average Delay (min)', angle: -90, position: 'center', offset: 10 }}
+                            domain={['auto', 'auto']}
                             allowDecimals={false}
                         />
                         <Tooltip
@@ -77,4 +81,4 @@ const RouteDelayLineChart = ({ data }) => {
     )
 }
 
-export default RouteDelayLineChart;
+export default DelayLineChart;

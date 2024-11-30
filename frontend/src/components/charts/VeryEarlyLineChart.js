@@ -3,10 +3,13 @@ import React, { useEffect, useState } from 'react'
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip } from 'recharts'
 import { convertUnixTimeToPST, generateTicks, filterByTimeRange } from '../../utils/time'
 
-const RouteVeryLateLineChart = ({ data }) => {
+const VeryLateLineChart = ({ data }) => {
     const [filteredData, setFilteredData] = useState([]);
     const [timeRange, setTimeRange] = useState('day');
     const [ticks, setTicks] = useState([]);
+
+    const minTime = Math.min(...filteredData.map((d) => d.update_time));
+    const maxTime = Math.max(...filteredData.map((d) => d.update_time));
 
     const tooltipLabelFormatter = (label) => convertUnixTimeToPST(label)
 
@@ -48,7 +51,7 @@ const RouteVeryLateLineChart = ({ data }) => {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis
                             dataKey="update_time"
-                            domain={['auto', 'auto']}
+                            domain={[minTime, maxTime]}
                             name='Time'
                             label={{ value: 'Time', position: 'insideBottom', offset: -5 }}
                             ticks={ticks}
@@ -77,4 +80,4 @@ const RouteVeryLateLineChart = ({ data }) => {
     )
 }
 
-export default RouteVeryLateLineChart;
+export default VeryLateLineChart;

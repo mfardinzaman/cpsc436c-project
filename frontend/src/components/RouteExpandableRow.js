@@ -4,10 +4,10 @@ import moment from 'moment-timezone';
 import { TableRow, TableCell, Box, CircularProgress } from "@mui/material";
 import service from "../services/services";
 
-import RouteDelayLineChart from "./charts/RouteDelayLineChart";
-import RouteVeryLateLineChart from "./charts/RouteVeryLateLineChart";
-import RouteVeryEarlyLineChart from "./charts/RouteVeryEarlyLineChart";
-import RouteVehicleCountLineChart from "./charts/RouteVehicleCountLineChart";
+import DelayLineChart from "./charts/DelayLineChart";
+import VeryLateLineChart from "./charts/VeryLateLineChart";
+import VeryEarlyLineChart from "./charts/VeryEarlyLineChart";
+import VehicleCountLineChart from "./charts/VehicleCountLineChart";
 import { convertUnixTimeToPST } from "../utils/time";
 
 const RouteExpandableRow = ({ rowData, route }) => {
@@ -29,8 +29,8 @@ const RouteExpandableRow = ({ rowData, route }) => {
                 setHistoricalData(result.body.map((data) => ({
                     update_time: moment.utc(data.update_time).valueOf(),
                     average_delay: data.average_delay / 60,
-                    early_percentage: Math.floor((data.very_early_count / data.vehicle_count) * 100),
-                    late_percentage: Math.floor((data.very_late_count / data.vehicle_count) * 100),
+                    early_percentage: (data.very_early_count / data.vehicle_count) * 100,
+                    late_percentage: (data.very_late_count / data.vehicle_count) * 100,
                     vehicle_count: data.vehicle_count
                 })))
             } else {
@@ -118,10 +118,10 @@ const RouteExpandableRow = ({ rowData, route }) => {
                         }}
                     >
 
-                        <RouteDelayLineChart data={historicalData} />
-                        <RouteVehicleCountLineChart data={historicalData} />
-                        <RouteVeryLateLineChart data={historicalData} />
-                        <RouteVeryEarlyLineChart data={historicalData} />
+                        <DelayLineChart data={historicalData} />
+                        <VehicleCountLineChart data={historicalData} />
+                        <VeryLateLineChart data={historicalData} />
+                        <VeryEarlyLineChart data={historicalData} />
                     </Box>
                 )}
 
