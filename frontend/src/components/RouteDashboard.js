@@ -15,7 +15,9 @@ const RouteDashboard = () => {
             const result = await service.getRouteStats();
           
             if (result.statusCode === 200) {
-                setRoutes(result.body);
+                setRoutes(result.body.sort((a,b) => {
+                    return b.vehicle_count - a.vehicle_count;
+                }));
             } else {
                 console.log('Error fetching routes:', result.statusCode);
             }
