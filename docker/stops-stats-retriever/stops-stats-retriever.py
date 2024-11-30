@@ -74,13 +74,13 @@ def get_stops_stats(session, update_time):
 #     return results
 
 
+
 def lambda_handler(event, context):
     try:
         session = create_session()
 
         update_time = get_last_update_time(session)
         stops = get_stops_stats(session, update_time)
-
 
         results = []
         # latestSet = False
@@ -107,7 +107,16 @@ def lambda_handler(event, context):
             #     'very_late_count': stopData.very_late_count
             # }
             # stopData.update_time = str stopData.update_time.isoformat())
-            results.append(stopData)
+            result = {
+                'stop_id': stopData.stop_id,
+                'average_delay': stopData.average_delay,
+                'stop_code': stopData.stop_code,
+                'stop_count': stopData.stop_count,
+                'stop_name': stopData.stop_name,
+                'very_late_count': stopData.very_late_count,
+                'very_late_percentage': ((stopData.very_late_count / stopData.stop_count) * 100)//1
+            }
+            results.append(result)
 
         return {
             'statusCode': 200,
