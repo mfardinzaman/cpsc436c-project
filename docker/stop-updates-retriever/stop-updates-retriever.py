@@ -63,13 +63,23 @@ def get_stop_updates(session, update_time, stop_id):
     results = session.execute(bound)
     return results
 
-
+def get_routes(session):
+    query = create_statement(f"SELECT route_id, direction_id, route_short_name, direction_name FROM route;")
+    results = session.execute(query)
+    return results
 
 def lambda_handler(event, context):
     try:
         session = create_session()
         update_time = get_last_update_time(session)
         stops = get_stop_updates(session, update_time, event['stop_id'])
+
+        routes = get_routes(session)
+        
+        map = {}
+
+        for route in routes:
+            map[(route.route_id, route.direction_id)] = (route.route_short_name, route.direction_name)
 
         results = []
         for stopData in stops:
@@ -81,7 +91,9 @@ def lambda_handler(event, context):
                 'direction_id': stopData.direction_id,
                 'route_id': stopData.route_id,
                 'stop_time': stopData.stop_time.isoformat(),
-                'vehicle_label': stopData.vehicle_label
+                'vehicle_label': stopData.vehicle_label,
+                'route_short_name': map[(stopData.route_id, stopData.direction_id)][0],
+                'direction_name': map[(stopData.route_id, stopData.direction_id)][1],
             }
             # stopData.update_time = str stopData.update_time.isoformat())
             results.append(result)
