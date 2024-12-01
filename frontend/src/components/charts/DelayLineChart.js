@@ -13,7 +13,7 @@ const DelayLineChart = ({ data }) => {
 
     const tooltipLabelFormatter = (label) => convertUnixTimeToPST(label)
 
-    const tooltipFormatter = (value) => [`${Math.round(value)} min`, 'Average delay']
+    const tooltipFormatter = (value) => [`${Math.round(value*10)/10} min`, 'Average delay']
 
 
     const handleTimeRangeChange = (event) => {
