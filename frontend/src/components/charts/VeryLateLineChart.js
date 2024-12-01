@@ -13,7 +13,7 @@ const VeryLateLineChart = ({ data }) => {
 
     const tooltipLabelFormatter = (label) => convertUnixTimeToPST(label)
 
-    const tooltipFormatter = (value) => [`${value} %`, 'Percentage']
+    const tooltipFormatter = (value) => [`${Math.round(value * 10) / 10} %`, 'Percentage']
 
     const handleTimeRangeChange = (event) => {
         const selectedRange = event.target.value;

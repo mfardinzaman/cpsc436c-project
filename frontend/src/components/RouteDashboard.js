@@ -53,7 +53,7 @@ const RouteDashboard = () => {
             name: "average_delay",
             label: "Average Lateness (min)",
             options: {
-                customBodyRender: (value, { rowIndex }) => {
+                customBodyRender: (value) => {
                     const minutes = Math.round(value / 60)
                     return <Typography>{`${minutes}`}</Typography>
                 },
@@ -64,8 +64,7 @@ const RouteDashboard = () => {
             name: "very_late_percentage",
             label: "% Vehicles >5 minutes late",
             options: {
-                customBodyRender: (value, { rowIndex }) => {
-                    const rowObject = routes[rowIndex];
+                customBodyRender: (value) => {
                     const percentage = value; /*Math.floor((value / rowObject["vehicle_count"]) * 100)*/
                     return <Typography>{`${percentage}%`}</Typography>
                 },
@@ -89,7 +88,8 @@ const RouteDashboard = () => {
         print: false,
         download: false,
         filter: false,
-        responsive: 'standard'
+        responsive: 'standard',
+        viewColumns: false
     };
 
     useEffect(() => {

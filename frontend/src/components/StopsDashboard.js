@@ -51,8 +51,7 @@ const StopsDashboard = () => {
             label: "% Vehicles > 5 Min Late",
             options: {
                 customBodyRender: (value, { rowIndex }) => {
-                    const rowObject = stops[rowIndex];
-                    const percentage = value/*Math.floor((value / rowObject["stop_count"]) * 100)*/;
+                    const percentage = value
                     return <Typography>{`${percentage}%`}</Typography>
                 },
                 searchable: false
@@ -82,6 +81,7 @@ const StopsDashboard = () => {
         download: false,
         filter: false,
         responsive: 'standard',
+        viewColumns: false,
         sortOrder: {
             name: 'stop_name',
             direction: 'asc'
