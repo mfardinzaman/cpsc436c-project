@@ -22,7 +22,7 @@ Deployed with AWS Amplify: https://main.d3mj2q6l6unypg.amplifyapp.com/
 - Lambdas take 2-40 seconds
 - Keyspaces (Cassandra) is a column-family database that works well with data aggregation, scaling with data, and has high availability & performance 
 ### Costs
-$9 per month + $0.10 per thousand visits
+- $9 per month + $0.10 per thousand visits
 ### Security
 - custom IAM roles & policies were created to ensure access is only granted where needed
 - VPC with public and private subnets minimize attack surface for DDoS attacks
