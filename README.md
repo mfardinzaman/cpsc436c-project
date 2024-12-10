@@ -20,7 +20,7 @@ Deployed with AWS Amplify: https://main.d3mj2q6l6unypg.amplifyapp.com/
 ### Performance
 - Eventbridge triggers every 10 minutes --> database and visualizations update approximately every 10 minutes as well
 - Lambdas take 2-40 seconds
-- column-family Keyspaces (Cassandra) database works well with data aggregation, scaling with data, and has high availability & performance 
+- Keyspaces (Cassandra) is a column-family database that works well with data aggregation, scaling with data, and has high availability & performance 
 ### Costs
 $9 per month + $0.10 per thousand visits
 ### Security
